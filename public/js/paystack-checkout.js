@@ -357,46 +357,16 @@ const PaystackCheckout = {
     });
   },
 
-  /** Show OTP / voucher step without hiding the main pay form. */
-  showOtpStep(root, { reference, display_text } = {}) {
-    const payForm = root?.querySelector('[data-paystack-form]');
-    const otpForm = root?.querySelector('[data-paystack-otp-form]');
-    const hint = root?.querySelector('[data-paystack-otp-hint]');
-    if (!otpForm) return null;
-
-    // Keep pay form visible but disable it while OTP is entered
-    if (payForm) {
-      payForm.classList.remove('hidden');
-      payForm.querySelectorAll('input, select, button').forEach((el) => {
-        el.disabled = true;
-      });
-    }
-    otpForm.classList.remove('hidden');
-    if (hint) {
-      hint.textContent =
-        display_text ||
-        'Follow the phone instruction, then enter the OTP / voucher code below.';
-    }
-    if (reference) {
-      this.ensureHidden(otpForm, 'reference', reference);
-      otpForm.dataset.paystackReference = reference;
-    }
-    const otpInput = otpForm.querySelector('[name="otp"], [data-paystack-field="otp"]');
-    if (otpInput) {
-      otpInput.value = '';
-      otpInput.disabled = false;
-      otpInput.focus();
-    }
-    otpForm.querySelectorAll('button').forEach((el) => {
-      el.disabled = false;
-    });
-    return otpForm;
+  showOtpStep() {
+    // Website voucher/OTP disabled while MTN-only — approval is on the phone
+    return null;
   },
 
   hideOtpStep(root) {
     const payForm = root?.querySelector('[data-paystack-form]');
     const otpForm = root?.querySelector('[data-paystack-otp-form]');
     otpForm?.classList.add('hidden');
+    if (otpForm) otpForm.style.display = 'none';
     if (payForm) {
       payForm.classList.remove('hidden');
       payForm.style.display = '';
@@ -405,88 +375,12 @@ const PaystackCheckout = {
         el.disabled = false;
       });
     }
-    const otpInput = otpForm?.querySelector('[name="otp"], [data-paystack-field="otp"]');
-    if (otpInput) otpInput.value = '';
   },
 
-  /**
-   * Wait for the student to submit OTP/voucher on the OTP form.
-   * Resolves with API result after submit_otp (+ optional poll).
-   */
-  waitForOtpSubmission(root, reference, { display_text } = {}) {
-    const otpForm = this.showOtpStep(root, { reference, display_text });
-    if (!otpForm) {
-      return Promise.reject(
-        new Error(
-          display_text ||
-            'Paystack asked for an OTP/voucher code, but the OTP form is missing. Refresh and try again.'
-        )
-      );
-    }
-
-    return new Promise((resolve, reject) => {
-      const onSubmit = async (e) => {
-        e.preventDefault();
-        const otp = String(new FormData(otpForm).get('otp') || '').trim();
-        if (!otp) {
-          reject(new Error('Enter the OTP or voucher code from your phone'));
-          return;
-        }
-        cleanup();
-        try {
-          const submitted = await Busy.run(
-            () =>
-              API.request('/student/payments/momo/otp', {
-                method: 'POST',
-                body: { reference, otp },
-              }),
-            'Confirming code…'
-          );
-          this.hideOtpStep(root);
-          if (submitted.payment || submitted.status === 'success') {
-            resolve(submitted);
-            return;
-          }
-          if (submitted.wait_for_phone) {
-            const waitEl = root.querySelector('[data-paystack-wait]');
-            if (waitEl) {
-              waitEl.classList.remove('hidden');
-              waitEl.textContent = submitted.display_text || 'Confirming payment…';
-            }
-            try {
-              resolve(
-                await this.waitForMomoApproval(reference, {
-                  seconds: submitted.poll_seconds || 120,
-                  root,
-                })
-              );
-            } finally {
-              waitEl?.classList.add('hidden');
-            }
-            return;
-          }
-          resolve(submitted);
-        } catch (err) {
-          this.hideOtpStep(root);
-          reject(err);
-        }
-      };
-
-      const onCancel = () => {
-        cleanup();
-        this.hideOtpStep(root);
-        reject(new Error('Payment cancelled before entering OTP'));
-      };
-
-      const cleanup = () => {
-        otpForm.removeEventListener('submit', onSubmit);
-        cancelBtn?.removeEventListener('click', onCancel);
-      };
-
-      const cancelBtn = otpForm.querySelector('[data-paystack-otp-cancel]');
-      otpForm.addEventListener('submit', onSubmit);
-      cancelBtn?.addEventListener('click', onCancel);
-    });
+  waitForOtpSubmission() {
+    return Promise.reject(
+      new Error('Website voucher/OTP is disabled. Approve with your MTN MoMo PIN on the phone.')
+    );
   },
 
   sleep(ms) {
@@ -497,6 +391,8 @@ const PaystackCheckout = {
   async waitForMomoApproval(reference, { seconds = 180, onTick, root } = {}) {
     const deadline = Date.now() + seconds * 1000;
     let lastError = null;
+    // Never open website OTP/voucher while waiting — MTN PIN/USSD happens on the handset
+    this.hideOtpStep(root);
     while (Date.now() < deadline) {
       try {
         const result = await API.request('/student/payments/verify', {
@@ -507,12 +403,12 @@ const PaystackCheckout = {
           return result;
         }
         if (result.pending) {
-          if (result.status === 'send_otp' && root) {
-            return this.waitForOtpSubmission(root, reference, {
-              display_text: result.message,
-            });
+          if (typeof onTick === 'function') {
+            onTick(
+              result.message ||
+                'Waiting on your phone — enter your MTN MoMo PIN when prompted (not a website code).'
+            );
           }
-          if (typeof onTick === 'function') onTick(result.message);
           await this.sleep(3000);
           continue;
         }
@@ -533,7 +429,7 @@ const PaystackCheckout = {
   },
 
   /**
-   * MoMo → realtime Charge API (PIN prompt on phone).
+   * MoMo → Charge API → PIN/USSD on the phone only (no website voucher).
    * Bank transfer / card → Paystack Popup.
    */
   async pay(formOrSelector) {
@@ -542,15 +438,14 @@ const PaystackCheckout = {
     const root = form.closest('[data-paystack-root]') || document;
     this.hideOtpStep(root);
 
-    // Realtime MoMo PIN on the phone
     if (method === 'momo') {
       const charged = await Busy.run(
         () =>
           API.request('/student/payments/momo', {
             method: 'POST',
-            body: { email, phone_number, provider },
+            body: { email, phone_number, provider: 'mtn' },
           }),
-        'Sending MoMo PIN prompt…'
+        'Sending MTN MoMo PIN prompt…'
       );
 
       form.dataset.paystackReference = charged.reference || charged.payment?.paystack_reference || '';
@@ -560,64 +455,27 @@ const PaystackCheckout = {
         return charged;
       }
 
-      // MTN: never show website voucher/OTP — only wait for phone PIN (unless Paystack forces send_otp later)
-      const useWebsiteOtp =
-        provider !== 'mtn' && (charged.needs_otp || charged.status === 'send_otp');
-
-      if (useWebsiteOtp) {
-        const waitEl = root.querySelector('[data-paystack-wait]');
-        if (waitEl && (charged.display_text || charged.ussd_code)) {
-          waitEl.classList.remove('hidden');
-          waitEl.textContent = charged.ussd_code
-            ? `${charged.display_text || 'Complete auth on your phone.'} USSD: ${charged.ussd_code}`
-            : charged.display_text;
-        }
-        if (charged.wait_for_phone) {
-          const otpPromise = this.waitForOtpSubmission(root, charged.reference, {
-            display_text: charged.display_text || charged.message,
-          });
-          const pollPromise = this.waitForMomoApproval(charged.reference, {
-            seconds: charged.poll_seconds || 180,
-            root,
-            onTick(msg) {
-              if (waitEl && msg) waitEl.textContent = msg;
-            },
-          });
-          try {
-            return await Promise.race([otpPromise, pollPromise]);
-          } finally {
-            waitEl?.classList.add('hidden');
-            this.hideOtpStep(root);
-          }
-        }
-        return this.waitForOtpSubmission(root, charged.reference, {
-          display_text: charged.display_text || charged.message,
+      // Always wait on the handset for MTN — never show website OTP/voucher
+      this.hideOtpStep(root);
+      const waitEl = root.querySelector('[data-paystack-wait]');
+      if (waitEl) {
+        waitEl.classList.remove('hidden');
+        waitEl.textContent =
+          charged.display_text ||
+          `Check ${phone_number} now. Enter your MTN MoMo PIN on the phone to approve. Do not type any code on this website.`;
+      }
+      try {
+        return await this.waitForMomoApproval(charged.reference, {
+          seconds: charged.poll_seconds || 180,
+          root,
+          onTick(msg) {
+            if (waitEl && msg) waitEl.textContent = msg;
+          },
         });
-      }
-
-      if (charged.wait_for_phone || charged.status === 'pay_offline' || charged.status === 'send_otp') {
+      } finally {
+        waitEl?.classList.add('hidden');
         this.hideOtpStep(root);
-        const waitEl = root.querySelector('[data-paystack-wait]');
-        if (waitEl) {
-          waitEl.classList.remove('hidden');
-          waitEl.textContent =
-            charged.display_text ||
-            'Check your phone now and type your MTN MoMo PIN to approve the payment. Do not enter a voucher here.';
-        }
-        try {
-          return await this.waitForMomoApproval(charged.reference, {
-            seconds: charged.poll_seconds || 180,
-            root,
-            onTick(msg) {
-              if (waitEl && msg) waitEl.textContent = msg;
-            },
-          });
-        } finally {
-          waitEl?.classList.add('hidden');
-        }
       }
-
-      return charged;
     }
 
     const channels = method === 'bank' ? ['bank_transfer'] : ['card'];

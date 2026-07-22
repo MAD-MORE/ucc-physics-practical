@@ -391,7 +391,7 @@ async function verifyPayment(req, res) {
       });
     }
 
-    // Still waiting for phone PIN / OTP / network (do not mark failed yet)
+    // Still waiting for phone PIN (do not mark failed yet)
     if (
       ['ongoing', 'pending', 'processing', 'queued', 'pay_offline', 'abandoned', 'send_otp'].includes(
         gatewayStatus
@@ -401,10 +401,11 @@ async function verifyPayment(req, res) {
         status: gatewayStatus || 'pending',
         pending: true,
         reference,
+        // MTN: send_otp from Paystack still means approve on the handset — not a website voucher
         message:
-          gatewayStatus === 'send_otp'
-            ? data.display_text || 'Enter the OTP / voucher code to finish payment'
-            : data.gateway_response || 'Waiting for MoMo approval on your phone…',
+          data.display_text ||
+          data.gateway_response ||
+          'Waiting on your phone — enter your MTN MoMo PIN when prompted.',
       });
     }
 
@@ -587,34 +588,27 @@ async function chargeMomoPayment(req, res) {
       }
 
       if (status === 'send_otp') {
-        // send_otp is for Telecel-style voucher flows — not used while MTN-only
+        // Even if Paystack labels this send_otp, MTN approval is on the phone — no website voucher.
         return res.status(201).json({
           mock: false,
           already_paid: false,
           reference: gatewayReference,
-          status: 'send_otp',
-          needs_otp: normalizedProvider !== 'mtn',
-          wait_for_phone: normalizedProvider === 'mtn',
-          ussd_code: data.ussd_code || '',
+          status: 'pay_offline',
+          needs_otp: false,
+          wait_for_phone: true,
           display_text:
-            normalizedProvider === 'mtn'
-              ? data.display_text ||
-                `Approve on your phone — enter your MTN MoMo PIN when prompted (${phoneNumber}).`
-              : data.display_text ||
-                'Follow the instruction on your phone, then enter the OTP / voucher code below.',
-          message:
-            normalizedProvider === 'mtn'
-              ? 'Check your phone and type your MTN MoMo PIN.'
-              : data.display_text || 'Enter the OTP or voucher code from your phone to finish payment.',
+            data.display_text ||
+            `Check your phone (${phoneNumber}) and enter your MTN MoMo PIN when prompted. Do not enter a code on this website.`,
+          message: 'Approve with your MTN MoMo PIN on the phone.',
+          poll_seconds: 180,
           live_mode: liveMode,
         });
       }
 
-      // MTN / ATMoney: pay_offline → PIN prompt on the handset. Do NOT open a website voucher form.
-      const ussd = String(data.ussd_code || '').trim();
+      // MTN: pay_offline → PIN prompt on the handset only
       const display =
         data.display_text ||
-        `Check your phone (${phoneNumber}) now and enter your MTN MoMo PIN to approve GHS ${amount.toFixed(0)}.`;
+        `Check your phone (${phoneNumber}) now and enter your MTN MoMo PIN to approve GHS ${amount.toFixed(0)}. Do not enter a code on this website.`;
 
       return res.status(201).json({
         mock: false,
@@ -622,7 +616,6 @@ async function chargeMomoPayment(req, res) {
         reference: gatewayReference,
         status: status || 'pay_offline',
         display_text: display,
-        ussd_code: ussd,
         wait_for_phone: true,
         needs_otp: false,
         poll_seconds: 180,

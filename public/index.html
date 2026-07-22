@@ -200,17 +200,18 @@
         </div>
       </form>
 
-      <form id="payment-momo-otp-form" class="hidden" data-paystack-otp-form>
+      <form id="payment-momo-otp-form" class="hidden" data-paystack-otp-form aria-hidden="true" style="display:none !important">
+        <!-- Kept for later Telecel voucher support; hidden while MTN-only (PIN on phone). -->
         <p class="alert alert-info" data-paystack-otp-hint style="margin-bottom:1rem;">
           Enter the OTP or voucher code from your phone.
         </p>
         <div class="field">
           <label for="modal-otp">OTP / voucher code</label>
-          <input id="modal-otp" name="otp" data-paystack-field="otp" inputmode="numeric" autocomplete="one-time-code" placeholder="Code from phone / USSD" />
+          <input id="modal-otp" name="otp" data-paystack-field="otp" inputmode="numeric" autocomplete="one-time-code" placeholder="Code from phone / USSD" disabled />
         </div>
         <div class="modal-actions">
-          <button class="btn btn-primary" type="submit" data-paystack-otp-submit>Confirm code</button>
-          <button class="btn btn-secondary" type="button" data-paystack-otp-cancel>Back</button>
+          <button class="btn btn-primary" type="submit" data-paystack-otp-submit disabled>Confirm code</button>
+          <button class="btn btn-secondary" type="button" data-paystack-otp-cancel disabled>Back</button>
         </div>
       </form>
     </section>

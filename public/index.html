@@ -220,9 +220,8 @@
         try {
           const status = await API.request('/portal/status');
           const regText = status.registration_open ? 'open' : 'closed';
-          const payText = status.paystack_connected ? 'Paystack connected' : 'Paystack not connected';
           portalStatus.className = `alert ${status.registration_open ? 'alert-ok' : 'alert-info'}`;
-          portalStatus.textContent = `Department settings: registration is ${regText} · fee GHS ${Number(status.fee).toFixed(0)} · ${status.open_session_count} open slot${status.open_session_count === 1 ? '' : 's'} · ${payText}.`;
+          portalStatus.textContent = `Department settings: registration is ${regText} · fee GHS ${Number(status.fee).toFixed(0)} · ${status.open_session_count} open slot${status.open_session_count === 1 ? '' : 's'}.`;
         } catch {
           portalStatus.className = 'alert alert-error';
           portalStatus.textContent = 'Could not load department settings.';

@@ -80,9 +80,9 @@ const PaystackCheckout = {
         phoneEl?.focus();
         throw new Error('Enter the MoMo number that will receive the PIN prompt');
       }
-      if (!['mtn', 'atl', 'vod'].includes(provider || String(providerEl?.value || '').trim().toLowerCase())) {
+      if (!['mtn'].includes(provider || String(providerEl?.value || '').trim().toLowerCase())) {
         providerEl?.focus();
-        throw new Error('Select MTN, ATMoney, or Telecel');
+        throw new Error('Only MTN MoMo is enabled for now');
       }
     }
 
@@ -120,8 +120,7 @@ const PaystackCheckout = {
         hint.classList.add('hidden');
       } else if (live) {
         hint.classList.remove('hidden');
-        hint.textContent =
-          'MTN/ATMoney: PIN prompt on phone. Telecel: dial USSD / enter voucher — push PIN is often not sent.';
+        hint.textContent = 'MTN MoMo: type your PIN on the phone when prompted. Or pay by bank transfer / card.';
       } else {
         hint.classList.remove('hidden');
         hint.textContent =
@@ -187,9 +186,7 @@ const PaystackCheckout = {
           'mtn';
         submit.textContent =
           method === 'momo'
-            ? provider === 'vod'
-              ? 'Start Telecel payment'
-              : 'Send PIN prompt'
+            ? 'Send MTN PIN prompt'
             : method === 'bank'
               ? 'Open bank transfer'
               : 'Pay with card';
@@ -197,9 +194,6 @@ const PaystackCheckout = {
     };
 
     form.querySelectorAll('[name="pay_method"]').forEach((el) => {
-      el.addEventListener('change', sync);
-    });
-    form.querySelectorAll('[name="provider"]').forEach((el) => {
       el.addEventListener('change', sync);
     });
     sync();

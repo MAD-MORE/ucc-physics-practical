@@ -43,8 +43,7 @@ function friendlyPaystackError(raw, { phone } = {}) {
   if (upper.includes('LOW_BALANCE') || upper.includes('PAYEE_LIMIT') || upper.includes('NOT_ALLOWED')) {
     const phoneHint = phone ? ` on ${phone}` : '';
     return (
-      `MoMo could not debit${phoneHint}. Check: enough balance, correct network (MTN/ATMoney/Telecel), ` +
-      `and that MoMo payments are allowed on this number. Or pay with bank transfer / card instead.`
+      `MoMo could not debit${phoneHint}. Check MTN balance and that the number is an MTN MoMo wallet. Or pay with bank transfer / card instead.`
     );
   }
   if (/insufficient|low balance/i.test(text)) {
@@ -435,13 +434,9 @@ router.get('/config', authRequired(['student', 'pending']), async (_req, res) =>
       test_mode: String(getPublicKey()).includes('_test_'),
       live_mode: String(getPublicKey()).includes('_live_'),
       require_live: true,
-      momo_providers: [
-        { code: 'mtn', label: 'MTN MoMo' },
-        { code: 'vod', label: 'Telecel Cash' },
-        { code: 'atl', label: 'ATMoney' },
-      ],
+      momo_providers: [{ code: 'mtn', label: 'MTN MoMo' }],
       callback_hint:
-        'MoMo: type your PIN on the phone when prompted. Bank transfer and card also available.',
+        'MTN MoMo: type your PIN on the phone when prompted. Bank transfer and card also available.',
     });
   } catch (err) {
     console.error(err);
@@ -466,22 +461,16 @@ async function chargeMomoPayment(req, res) {
       return res.status(400).json({ error: 'Enter the MoMo number that will receive the debit prompt' });
     }
 
-    const provider = String(req.body.provider || '')
+    const provider = String(req.body.provider || 'mtn')
       .trim()
       .toLowerCase();
-    const providerAliases = {
-      mtn: 'mtn',
-      atl: 'atl',
-      tigo: 'atl',
-      airteltigo: 'atl',
-      vod: 'vod',
-      vodafone: 'vod',
-      telecel: 'vod',
-    };
-    const normalizedProvider = providerAliases[provider];
-    if (!normalizedProvider) {
-      return res.status(400).json({ error: 'Select MTN, ATMoney, or Telecel' });
+    // MTN only for now — re-enable atl / vod when ready
+    if (provider !== 'mtn') {
+      return res.status(400).json({
+        error: 'Only MTN MoMo is enabled for now. Use an MTN number, or pay by bank transfer / card.',
+      });
     }
+    const normalizedProvider = 'mtn';
 
     const owner = await resolvePaymentOwner(req);
     const portal = await getPortalSettings(sql);

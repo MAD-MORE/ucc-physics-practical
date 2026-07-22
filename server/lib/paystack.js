@@ -173,24 +173,16 @@ async function chargeMobileMoney({
     err.status = 400;
     throw err;
   }
-  const code = String(provider || '')
+  const code = String(provider || 'mtn')
     .trim()
     .toLowerCase();
-  const providerMap = {
-    mtn: 'mtn',
-    atl: 'atl',
-    tigo: 'atl',
-    airteltigo: 'atl',
-    vod: 'vod',
-    vodafone: 'vod',
-    telecel: 'vod',
-  };
-  const providerCode = providerMap[code];
-  if (!providerCode) {
-    const err = new Error('Choose a MoMo network: MTN, ATMoney, or Telecel');
+  // MTN only for now (atl / vod mapped here again when re-enabled)
+  if (code !== 'mtn') {
+    const err = new Error('Only MTN MoMo is enabled for now');
     err.status = 400;
     throw err;
   }
+  const providerCode = 'mtn';
 
   return paystackRequest('/charge', {
     method: 'POST',

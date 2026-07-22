@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin Console · UCC Physics</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="brand">
+      <span class="brand-mark">UCC Physics</span>
+      <span class="brand-sub">Admin Console</span>
+    </div>
+    <nav class="nav-links">
+      <span class="user-chip" id="user-chip"></span>
+      <button type="button" class="linkish" id="logout-btn">Sign out</button>
+    </nav>
+  </header>
+
+  <main>
+    <section class="panel">
+      <h2>Department control</h2>
+      <p class="lede">Set Monday-to-Sunday day/time slots — edit or delete them anytime.</p>
+      <div id="page-alert" class="alert hidden"></div>
+
+      <div class="stats">
+        <div class="stat"><strong id="stat-students">0</strong><span>Students</span></div>
+        <div class="stat"><strong id="stat-regs">0</strong><span>Registrations</span></div>
+        <div class="stat"><strong id="stat-schedules">0</strong><span>Schedules</span></div>
+        <div class="stat"><strong id="stat-open">—</strong><span>Registration</span></div>
+      </div>
+
+      <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:1rem;">
+        <button class="btn btn-primary" id="btn-open-reg" type="button">Open registration</button>
+        <button class="btn btn-secondary" id="btn-close-reg" type="button">Close registration</button>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="schedules" type="button">Day/time slots</button>
+        <button class="tab" data-tab="create-schedule" type="button">Add slot</button>
+        <button class="tab" data-tab="registrations" type="button">Registrations</button>
+      </div>
+
+      <div id="tab-schedules" class="tab-panel">
+        <div class="schedule-save-bar">
+          <div class="schedule-history-actions">
+            <button class="btn btn-secondary" id="undo-schedules" type="button" disabled title="Ctrl+Z">
+              Undo
+            </button>
+            <button class="btn btn-secondary" id="redo-schedules" type="button" disabled title="Ctrl+Y">
+              Redo
+            </button>
+          </div>
+          <span class="autosave-on-label" title="Edits save automatically after you change a slot">Autosave on</span>
+          <span id="schedule-save-status" class="meta schedule-save-status is-idle">All changes saved</span>
+          <button class="btn btn-primary" id="save-all-schedules" type="button" disabled title="Ctrl+S">
+            Save all changes
+          </button>
+        </div>
+        <div id="schedule-cards" class="session-list"></div>
+      </div>
+
+      <div id="tab-create-schedule" class="tab-panel hidden">
+        <form id="schedule-form">
+          <div class="grid-2">
+            <div class="field">
+              <label for="sch-day">Day</label>
+              <select id="sch-day" name="day_of_week" required>
+                <option>Monday</option>
+                <option>Tuesday</option>
+                <option>Wednesday</option>
+                <option>Thursday</option>
+                <option>Friday</option>
+                <option>Saturday</option>
+                <option>Sunday</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="sch-start">Start time</label>
+              <input id="sch-start" name="start_time" type="time" required />
+            </div>
+            <div class="field">
+              <label for="sch-end">End time</label>
+              <input id="sch-end" name="end_time" type="time" required />
+            </div>
+            <div class="field">
+              <label for="sch-min">Minimum people</label>
+              <input id="sch-min" name="min_participants" type="number" min="0" value="1" required />
+            </div>
+            <div class="field">
+              <label for="sch-max">Maximum people</label>
+              <input id="sch-max" name="max_participants" type="number" min="1" value="30" required />
+            </div>
+          </div>
+          <button class="btn btn-primary" type="submit">Save day/time</button>
+          <button class="btn btn-secondary" type="button" id="demo-schedule-fill" style="margin-left:0.5rem;">Autofill seed data</button>
+        </form>
+      </div>
+
+      <div id="tab-registrations" class="tab-panel hidden">
+        <div class="regs-toolbar">
+          <div class="regs-search-row">
+            <label class="field regs-search-field" style="margin:0;">
+              <span class="meta">Name</span>
+              <input
+                id="regs-search-name"
+                type="search"
+                placeholder="Search by student name"
+                autocomplete="off"
+              />
+            </label>
+            <label class="field regs-search-field" style="margin:0;">
+              <span class="meta">Index</span>
+              <input
+                id="regs-search-index"
+                type="search"
+                placeholder="e.g. PS/PHY/22/001"
+                autocomplete="off"
+              />
+            </label>
+            <button class="btn btn-secondary" type="button" id="regs-clear-filters">Clear filters</button>
+          </div>
+          <div class="regs-program-filters" id="regs-program-filters"></div>
+          <div class="regs-day-filters" id="regs-day-filters">
+            <button class="btn btn-secondary active" type="button" data-regs-day="all">All days</button>
+            <button class="btn btn-secondary" type="button" data-regs-day="Monday">Monday</button>
+            <button class="btn btn-secondary" type="button" data-regs-day="Tuesday">Tuesday</button>
+            <button class="btn btn-secondary" type="button" data-regs-day="Wednesday">Wednesday</button>
+            <button class="btn btn-secondary" type="button" data-regs-day="Thursday">Thursday</button>
+            <button class="btn btn-secondary" type="button" data-regs-day="Friday">Friday</button>
+            <button class="btn btn-secondary" type="button" data-regs-day="Saturday">Saturday</button>
+            <button class="btn btn-secondary" type="button" data-regs-day="Sunday">Sunday</button>
+          </div>
+          <div class="regs-sort-controls">
+            <label class="field" style="margin:0;">
+              <span class="meta">Sort by</span>
+              <select id="regs-sort">
+                <option value="name">Name (A → Z)</option>
+                <option value="name-desc">Name (Z → A)</option>
+                <option value="program">Programme (PHY → STA)</option>
+                <option value="program-desc">Programme (STA → PHY)</option>
+                <option value="day">Day (Mon → Sun)</option>
+                <option value="day-desc">Day (Sun → Mon)</option>
+                <option value="time">Time (early → late)</option>
+                <option value="time-desc">Time (late → early)</option>
+                <option value="index">Index (A → Z)</option>
+                <option value="index-desc">Index (Z → A)</option>
+                <option value="registered">Registered (newest)</option>
+                <option value="registered-desc">Registered (oldest)</option>
+                <option value="amount">Amount (low → high)</option>
+                <option value="amount-desc">Amount (high → low)</option>
+                <option value="phone">Phone (A → Z)</option>
+                <option value="phone-desc">Phone (Z → A)</option>
+              </select>
+            </label>
+            <label class="field" style="margin:0;">
+              <span class="meta">Group by</span>
+              <select id="regs-group">
+                <option value="auto">Auto (from sort)</option>
+                <option value="flat">Flat list</option>
+                <option value="program">Programme</option>
+                <option value="day">Day</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <p class="meta" id="regs-summary" style="margin-bottom:1rem;"></p>
+        <div id="admin-regs-table-head" class="admin-regs-table-head meta hidden">
+          <span>Name</span>
+          <span>Index</span>
+          <span>Session</span>
+          <span>Payment</span>
+          <span>Registered</span>
+        </div>
+        <div id="admin-regs-cards" class="session-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/programs.js"></script>
+  <script src="/js/demo.js"></script>
+  <script src="/js/admin.js"></script>
+  <script>
+    autofillSchedule();
+    document.getElementById('demo-schedule-fill').addEventListener('click', autofillSchedule);
+  </script>
+</body>
+</html>

@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>UCC Physics Practical Registration</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="brand">
+      <span class="brand-mark">UCC Physics</span>
+      <span class="brand-sub">Practical Registration</span>
+    </div>
+    <nav class="nav-links">
+      <a href="#student-login">Student</a>
+      <a href="#admin-login">Admin</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1>Physics practicals, scheduled without the scramble.</h1>
+      <p>
+        Sign in with your registered full name and index number. Pay the practical fee with Paystack (MoMo or card), then pick a day and time.
+        Staff set the weekly slots and control when registration is open.
+      </p>
+      <div id="portal-status" class="alert alert-info" style="margin-top:1rem;">
+        Loading department settings…
+      </div>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="#student-login">Student sign in</a>
+        <a class="btn btn-secondary" href="#admin-login">Admin console</a>
+      </div>
+    </section>
+
+    <div class="grid-2">
+      <section class="panel" id="student-login">
+        <h2>Student sign in</h2>
+        <p class="lede">Enter your full name and index number as registered by the department. No password is required.</p>
+        <div id="mock-flow-panel" class="panel" style="margin-bottom:1rem;padding:1rem;background:#f8f4ea;"></div>
+        <div id="student-alert" class="alert hidden"></div>
+        <form id="student-login-form">
+          <div class="field">
+            <label for="student-name">Full name</label>
+            <input id="student-name" name="full_name" placeholder="Ama Mensah" required />
+          </div>
+          <div class="field">
+            <label for="student-index">Index number</label>
+            <input id="student-index" name="index_number" placeholder="PS/PHY/22/001" required />
+            <p id="index-verify-status" class="meta field-hint">Enter your index to verify it exists.</p>
+          </div>
+          <button class="btn btn-primary" type="submit">Continue</button>
+          <button class="btn btn-secondary" type="button" id="demo-student-fill" style="margin-top:0.5rem;">Autofill test flow</button>
+        </form>
+      </section>
+
+      <section class="panel" id="admin-login">
+        <h2>Admin sign in</h2>
+        <p class="lede">Set day/time slots and open or close registration.</p>
+        <div id="admin-alert" class="alert hidden"></div>
+        <form id="admin-login-form">
+          <div class="field">
+            <label for="admin-username">Username</label>
+            <input id="admin-username" name="username" placeholder="admin" required />
+          </div>
+          <div class="field">
+            <label for="admin-password">Password</label>
+            <input id="admin-password" name="password" type="password" required />
+          </div>
+          <button class="btn btn-primary" type="submit">Open admin console</button>
+          <button class="btn btn-secondary" type="button" id="demo-admin-fill" style="margin-top:0.5rem;">Autofill seed data</button>
+        </form>
+      </section>
+    </div>
+
+    <p class="footer-note">University of Cape Coast · Department of Physics · Practical Registration System</p>
+  </main>
+
+  <div id="payment-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="payment-modal-title" data-paystack-root>
+    <div class="modal-card">
+      <h3 id="payment-modal-title">Pay with Paystack</h3>
+      <p class="lede">
+        Your account was verified. Amount due: <strong data-paystack-fee>GHS —</strong>.
+        Enter your MoMo number — the fee is debited from that wallet after you enter your PIN on the phone.
+      </p>
+      <p class="meta" data-paystack-mode style="margin-top:-0.35rem;">Loading payment options…</p>
+      <p class="meta hidden" data-paystack-test-hint style="margin-top:0.35rem;"></p>
+      <p class="alert alert-info hidden" data-paystack-wait style="margin-top:0.75rem;">
+        Waiting for MoMo approval on your phone…
+      </p>
+      <div id="payment-modal-alert" class="alert hidden"></div>
+      <div id="payment-modal-paid" class="hidden">
+        <p class="meta">Payment already completed for registration.</p>
+        <div class="modal-actions">
+          <button class="btn btn-primary" type="button" id="payment-modal-continue">Continue to registration</button>
+          <button class="btn btn-secondary" type="button" id="payment-modal-cancel-paid">Cancel</button>
+        </div>
+      </div>
+      <form id="payment-modal-form" data-paystack-form>
+        <div class="field">
+          <label for="modal-email">Email (Paystack receipt)</label>
+          <input id="modal-email" name="email" data-paystack-field="email" type="email" autocomplete="email" placeholder="you@example.com" required />
+        </div>
+        <div class="field">
+          <span class="meta">Pay with</span>
+          <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:0.35rem;">
+            <label><input type="radio" name="pay_method" value="momo" checked /> MoMo (phone PIN)</label>
+            <label><input type="radio" name="pay_method" value="card" /> Card (Paystack popup)</label>
+          </div>
+        </div>
+        <div class="field">
+          <label for="modal-provider">MoMo network</label>
+          <select id="modal-provider" name="provider" data-paystack-field="provider" required>
+            <option value="mtn">MTN MoMo</option>
+            <option value="vod">Telecel Cash</option>
+            <option value="atl">ATMoney</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="modal-phone">Your MoMo phone number</label>
+          <input id="modal-phone" name="phone_number" data-paystack-field="phone_number" type="tel" autocomplete="tel" placeholder="e.g. 0244123456" minlength="10" maxlength="15" required />
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-primary" type="submit" data-paystack-pay>Debit my MoMo</button>
+          <button class="btn btn-secondary" type="button" id="demo-modal-momo-fill">Autofill demo phone</button>
+          <button class="btn btn-secondary" type="button" id="payment-modal-cancel">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="https://js.paystack.co/v1/inline.js" data-paystack-inline></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/programs.js"></script>
+  <script src="/js/demo.js"></script>
+  <script src="/js/paystack-checkout.js"></script>
+  <script>
+    (function () {
+      const user = API.getUser();
+      if (user?.role === 'admin') window.location.href = '/admin.html';
+
+      const paymentModal = document.getElementById('payment-modal');
+      const paymentForm = document.getElementById('payment-modal-form');
+      const paymentPaid = document.getElementById('payment-modal-paid');
+      const paymentAlert = document.getElementById('payment-modal-alert');
+      const studentAlert = document.getElementById('student-alert');
+      const portalStatus = document.getElementById('portal-status');
+      const indexInput = document.getElementById('student-index');
+      const indexStatus = document.getElementById('index-verify-status');
+      let indexVerified = false;
+      let verifiedIndex = '';
+
+      autofillAdminLogin();
+      renderMockFlowPanel();
+      loadPortalStatus();
+
+      if (user?.role === 'student') {
+        resumeStudentSession();
+      }
+
+      async function resumeStudentSession() {
+        try {
+          const sessions = await API.request('/student/sessions');
+          if (sessions.has_booking) {
+            window.location.href = '/student.html';
+            return;
+          }
+          openPaymentModal(sessions);
+        } catch {
+          API.clearSession();
+        }
+      }
+
+      async function loadPortalStatus() {
+        try {
+          const status = await API.request('/portal/status');
+          const regText = status.registration_open ? 'open' : 'closed';
+          const payText = status.paystack_connected ? 'Paystack API connected' : 'Paystack demo debit';
+          portalStatus.className = `alert ${status.registration_open ? 'alert-ok' : 'alert-info'}`;
+          portalStatus.innerHTML = `Department settings: registration is ${regText} · fee GHS ${Number(status.fee).toFixed(0)} · ${status.open_session_count} open slot${status.open_session_count === 1 ? '' : 's'} · ${payText}. <a href="/admin.html#paystack">Connect Paystack</a>`;
+        } catch (err) {
+          portalStatus.className = 'alert alert-error';
+          portalStatus.textContent = 'Could not load department settings.';
+        }
+      }
+
+      document.getElementById('demo-student-fill').addEventListener('click', () => {
+        autofillStudentLogin();
+        verifyIndexNumber();
+      });
+      document.getElementById('demo-admin-fill').addEventListener('click', autofillAdminLogin);
+
+      async function verifyIndexNumber() {
+        const indexNumber = normalizeIndexNumber(indexInput.value);
+        if (indexNumber && indexInput.value !== indexNumber) {
+          indexInput.value = indexNumber;
+        }
+        if (!indexNumber) {
+          indexVerified = false;
+          verifiedIndex = '';
+          indexStatus.textContent = 'Enter your index to verify it exists.';
+          indexStatus.className = 'meta field-hint';
+          return;
+        }
+
+        indexStatus.textContent = 'Checking index…';
+        indexStatus.className = 'meta field-hint';
+        try {
+          const result = await API.request(`/auth/student/verify-index?index_number=${encodeURIComponent(indexNumber)}`);
+          if (!result.exists) {
+            indexVerified = false;
+            verifiedIndex = '';
+            indexStatus.textContent = 'Index number not found in the database.';
+            indexStatus.className = 'meta field-hint field-hint-error';
+            return;
+          }
+          indexVerified = true;
+          verifiedIndex = normalizeIndexNumber(result.student.index_number);
+          indexInput.value = verifiedIndex;
+          indexStatus.textContent = `Verified: ${result.student.full_name}`;
+          indexStatus.className = 'meta field-hint field-hint-ok';
+          const nameInput = document.getElementById('student-name');
+          if (!nameInput.value.trim()) nameInput.value = result.student.full_name;
+        } catch (err) {
+          indexVerified = false;
+          verifiedIndex = '';
+          indexStatus.textContent = err.message;
+          indexStatus.className = 'meta field-hint field-hint-error';
+        }
+      }
+
+      indexInput.addEventListener('blur', verifyIndexNumber);
+      indexInput.addEventListener('change', verifyIndexNumber);
+
+      function openPaymentModal(sessions = null) {
+        hideAlert(paymentAlert);
+        paymentModal.classList.remove('hidden');
+        delete paymentModal.dataset.busyLock;
+        const alreadyPaid = Boolean(sessions?.unused_payment);
+        paymentForm.classList.toggle('hidden', alreadyPaid);
+        paymentPaid.classList.toggle('hidden', !alreadyPaid);
+        if (!alreadyPaid) {
+          autofillModalMomo();
+          PaystackCheckout.hydrateForm(paymentForm).catch(() => {});
+          document.getElementById('modal-email').focus();
+        }
+      }
+
+      function closePaymentModal() {
+        if (paymentModal.dataset.busyLock) return;
+        paymentModal.classList.add('hidden');
+        paymentForm.classList.remove('hidden');
+        paymentPaid.classList.add('hidden');
+        paymentForm.reset();
+        hideAlert(paymentAlert);
+      }
+
+      function dismissPaymentAndSignOut(message) {
+        if (paymentModal.dataset.busyLock) return;
+        closePaymentModal();
+        API.clearSession();
+        showAlert(studentAlert, message, 'info');
+      }
+
+      closeOnBackdropOrEscape(paymentModal, () => {
+        dismissPaymentAndSignOut('Payment is required before registration. Sign in again when ready.');
+      });
+
+      document.getElementById('payment-modal-cancel').addEventListener('click', () => {
+        dismissPaymentAndSignOut('Payment is required before registration. Sign in again when ready.');
+      });
+
+      document.getElementById('payment-modal-cancel-paid').addEventListener('click', () => {
+        dismissPaymentAndSignOut('Sign in again when you are ready to continue.');
+      });
+
+      document.getElementById('payment-modal-continue').addEventListener('click', () => {
+        if (paymentModal.dataset.busyLock) return;
+        window.location.href = '/student.html';
+      });
+
+      document.getElementById('demo-modal-momo-fill').addEventListener('click', () => {
+        if (!paymentModal.dataset.busyLock) autofillModalMomo();
+      });
+
+      document.getElementById('student-login-form').addEventListener(
+        'submit',
+        onceAsync(async (e) => {
+          e.preventDefault();
+          hideAlert(studentAlert);
+          const form = e.target;
+          const submitBtn = form.querySelector('button[type="submit"]');
+          const fd = new FormData(form);
+          const indexNumber = normalizeIndexNumber(fd.get('index_number'));
+          indexInput.value = indexNumber;
+
+          lockControls(form, true);
+          setBusyButton(submitBtn, true, 'Signing in…');
+          try {
+            if (!indexVerified || verifiedIndex !== indexNumber) {
+              await verifyIndexNumber();
+              if (!indexVerified || verifiedIndex !== indexNumber) {
+                showAlert(studentAlert, 'Verify a valid index number before continuing.', 'info');
+                return;
+              }
+            }
+
+            const data = await Busy.run(
+              () =>
+                API.request('/auth/student/login', {
+                  method: 'POST',
+                  body: {
+                    full_name: String(fd.get('full_name') || '').trim(),
+                    index_number: indexNumber,
+                  },
+                }),
+              'Signing in…'
+            );
+            API.setSession(data.token, data.user);
+
+            const sessions = await Busy.run(() => API.request('/student/sessions'), 'Loading your sessions…');
+            if (sessions.has_booking) {
+              Busy.show('Opening your portal…');
+              window.location.href = '/student.html';
+              return;
+            }
+
+            showAlert(studentAlert, 'Sign in successful. Pay with Paystack to continue.', 'ok');
+            openPaymentModal(sessions);
+          } catch (err) {
+            showAlert(studentAlert, err.message);
+          } finally {
+            lockControls(form, false);
+            setBusyButton(submitBtn, false);
+          }
+        })
+      );
+
+      document.getElementById('admin-login-form').addEventListener(
+        'submit',
+        onceAsync(async (e) => {
+          e.preventDefault();
+          const alertEl = document.getElementById('admin-alert');
+          hideAlert(alertEl);
+          const form = e.target;
+          const submitBtn = form.querySelector('button[type="submit"]');
+          const fd = new FormData(form);
+
+          lockControls(form, true);
+          setBusyButton(submitBtn, true, 'Signing in…');
+          try {
+            const data = await Busy.run(
+              () =>
+                API.request('/auth/admin/login', {
+                  method: 'POST',
+                  body: Object.fromEntries(fd.entries()),
+                }),
+              'Signing in…'
+            );
+            API.setSession(data.token, data.user);
+            Busy.show('Opening admin console…');
+            window.location.href = '/admin.html';
+          } catch (err) {
+            showAlert(alertEl, err.message);
+            lockControls(form, false);
+            setBusyButton(submitBtn, false);
+          }
+        })
+      );
+
+      document.getElementById('payment-modal-form').addEventListener(
+        'submit',
+        onceAsync(async (e) => {
+          e.preventDefault();
+          hideAlert(paymentAlert);
+          const form = e.target;
+          const submitBtn = form.querySelector('button[type="submit"]');
+
+          paymentModal.dataset.busyLock = '1';
+          lockControls(form, true);
+          setBusyButton(submitBtn, true, 'Debiting…');
+          try {
+            const data = await PaystackCheckout.pay(form);
+            showAlert(paymentAlert, data.message || 'Payment confirmed. Opening registration…', 'ok');
+            Busy.show('Opening your portal…');
+            window.location.href = '/student.html';
+          } catch (err) {
+            showAlert(paymentAlert, err.message);
+            delete paymentModal.dataset.busyLock;
+            lockControls(form, false);
+            setBusyButton(submitBtn, false);
+          }
+        })
+      );
+    })();
+  </script>
+</body>
+</html>

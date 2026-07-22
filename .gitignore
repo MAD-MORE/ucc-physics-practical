@@ -1,0 +1,12 @@
+node_modules/
+.env
+.env.local
+.env*.local
+.DS_Store
+*.log
+.railway/
+.neon
+.agents/
+skills-lock.json
+.cursor/
+

@@ -22,39 +22,90 @@
     <section class="hero">
       <h1>Physics practicals, scheduled without the scramble.</h1>
       <p>
-        Sign in with your registered full name and index number. Pay the practical fee with Paystack (MoMo or card), then pick a day and time.
+        Create a student account or sign in, pay the practical fee with Paystack (MoMo or card), then pick a day and time.
         Staff set the weekly slots and control when registration is open.
       </p>
       <div id="portal-status" class="alert alert-info" style="margin-top:1rem;">
         Loading department settings…
       </div>
       <div class="hero-actions">
-        <a class="btn btn-primary" href="#student-login">Student sign in</a>
+        <a class="btn btn-primary" href="#student-register">Register</a>
+        <a class="btn btn-secondary" href="#student-login">Student sign in</a>
         <a class="btn btn-secondary" href="#admin-login">Admin console</a>
       </div>
     </section>
 
     <div class="grid-2">
-      <section class="panel" id="student-login">
-        <h2>Student sign in</h2>
-        <p class="lede">Enter your full name and index number as registered by the department. No password is required.</p>
-        <div id="mock-flow-panel" class="panel" style="margin-bottom:1rem;padding:1rem;background:#f8f4ea;"></div>
-        <div id="student-alert" class="alert hidden"></div>
-        <form id="student-login-form">
+      <section class="panel" id="student-register">
+        <h2>Student registration</h2>
+        <p class="lede">Create your account with name, index, level, programme, email, and password.</p>
+        <div id="register-alert" class="alert hidden"></div>
+        <form id="student-register-form">
           <div class="field">
-            <label for="student-name">Full name</label>
-            <input id="student-name" name="full_name" placeholder="Ama Mensah" required />
+            <label for="reg-name">Full name</label>
+            <input id="reg-name" name="full_name" autocomplete="name" placeholder="Ama Mensah" required />
           </div>
           <div class="field">
-            <label for="student-index">Index number</label>
-            <input id="student-index" name="index_number" placeholder="PS/PHY/22/001" required />
-            <p id="index-verify-status" class="meta field-hint">Enter your index to verify it exists.</p>
+            <label for="reg-index">Index number</label>
+            <input id="reg-index" name="index_number" autocomplete="off" placeholder="PS/PHY/22/001" required />
           </div>
-          <button class="btn btn-primary" type="submit">Continue</button>
-          <button class="btn btn-secondary" type="button" id="demo-student-fill" style="margin-top:0.5rem;">Autofill test flow</button>
+          <div class="field">
+            <label for="reg-level">Level</label>
+            <select id="reg-level" name="level" required>
+              <option value="">Select level</option>
+              <option value="100">Level 100</option>
+              <option value="200">Level 200</option>
+              <option value="300">Level 300</option>
+              <option value="400">Level 400</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="reg-programme">Programme</label>
+            <select id="reg-programme" name="programme" required>
+              <option value="">Select programme</option>
+              <option value="BSc Physics">BSc Physics</option>
+              <option value="BSc Computer Science">BSc Computer Science</option>
+              <option value="BSc Mathematics">BSc Mathematics</option>
+              <option value="BSc Chemistry">BSc Chemistry</option>
+              <option value="BSc Biology">BSc Biology</option>
+              <option value="BSc Statistics">BSc Statistics</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="reg-email">Email</label>
+            <input id="reg-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required />
+          </div>
+          <div class="field">
+            <label for="reg-password">Password</label>
+            <input id="reg-password" name="password" type="password" autocomplete="new-password" minlength="6" placeholder="At least 6 characters" required />
+          </div>
+          <div class="field">
+            <label for="reg-password-confirm">Confirm password</label>
+            <input id="reg-password-confirm" name="password_confirm" type="password" autocomplete="new-password" minlength="6" required />
+          </div>
+          <button class="btn btn-primary" type="submit">Create account</button>
         </form>
       </section>
 
+      <section class="panel" id="student-login">
+        <h2>Student sign in</h2>
+        <p class="lede">Sign in with your index number and password.</p>
+        <div id="student-alert" class="alert hidden"></div>
+        <form id="student-login-form">
+          <div class="field">
+            <label for="student-index">Index number</label>
+            <input id="student-index" name="index_number" placeholder="PS/PHY/22/001" required />
+          </div>
+          <div class="field">
+            <label for="student-password">Password</label>
+            <input id="student-password" name="password" type="password" autocomplete="current-password" required />
+          </div>
+          <button class="btn btn-primary" type="submit">Sign in</button>
+        </form>
+      </section>
+    </div>
+
+    <div class="grid-2" style="margin-top:1.5rem;">
       <section class="panel" id="admin-login">
         <h2>Admin sign in</h2>
         <p class="lede">Set day/time slots and open or close registration.</p>
@@ -69,9 +120,9 @@
             <input id="admin-password" name="password" type="password" required />
           </div>
           <button class="btn btn-primary" type="submit">Open admin console</button>
-          <button class="btn btn-secondary" type="button" id="demo-admin-fill" style="margin-top:0.5rem;">Autofill seed data</button>
         </form>
       </section>
+      <div></div>
     </div>
 
     <p class="footer-note">University of Cape Coast · Department of Physics · Practical Registration System</p>
@@ -81,7 +132,7 @@
     <div class="modal-card">
       <h3 id="payment-modal-title">Pay with Paystack</h3>
       <p class="lede">
-        Your account was verified. Amount due: <strong data-paystack-fee>GHS —</strong>.
+        Your account is ready. Amount due: <strong data-paystack-fee>GHS —</strong>.
         Enter your MoMo number — the fee is debited from that wallet after you enter your PIN on the phone.
       </p>
       <p class="meta" data-paystack-mode style="margin-top:-0.35rem;">Loading payment options…</p>
@@ -123,7 +174,6 @@
         </div>
         <div class="modal-actions">
           <button class="btn btn-primary" type="submit" data-paystack-pay>Debit my MoMo</button>
-          <button class="btn btn-secondary" type="button" id="demo-modal-momo-fill">Autofill demo phone</button>
           <button class="btn btn-secondary" type="button" id="payment-modal-cancel">Cancel</button>
         </div>
       </form>
@@ -133,7 +183,6 @@
   <script src="https://js.paystack.co/v1/inline.js" data-paystack-inline></script>
   <script src="/js/api.js"></script>
   <script src="/js/programs.js"></script>
-  <script src="/js/demo.js"></script>
   <script src="/js/paystack-checkout.js"></script>
   <script>
     (function () {
@@ -145,14 +194,9 @@
       const paymentPaid = document.getElementById('payment-modal-paid');
       const paymentAlert = document.getElementById('payment-modal-alert');
       const studentAlert = document.getElementById('student-alert');
+      const registerAlert = document.getElementById('register-alert');
       const portalStatus = document.getElementById('portal-status');
-      const indexInput = document.getElementById('student-index');
-      const indexStatus = document.getElementById('index-verify-status');
-      let indexVerified = false;
-      let verifiedIndex = '';
 
-      autofillAdminLogin();
-      renderMockFlowPanel();
       loadPortalStatus();
 
       if (user?.role === 'student') {
@@ -176,62 +220,26 @@
         try {
           const status = await API.request('/portal/status');
           const regText = status.registration_open ? 'open' : 'closed';
-          const payText = status.paystack_connected ? 'Paystack API connected' : 'Paystack demo debit';
+          const payText = status.paystack_connected ? 'Paystack connected' : 'Paystack not connected';
           portalStatus.className = `alert ${status.registration_open ? 'alert-ok' : 'alert-info'}`;
-          portalStatus.innerHTML = `Department settings: registration is ${regText} · fee GHS ${Number(status.fee).toFixed(0)} · ${status.open_session_count} open slot${status.open_session_count === 1 ? '' : 's'} · ${payText}. <a href="/admin.html#paystack">Connect Paystack</a>`;
-        } catch (err) {
+          portalStatus.textContent = `Department settings: registration is ${regText} · fee GHS ${Number(status.fee).toFixed(0)} · ${status.open_session_count} open slot${status.open_session_count === 1 ? '' : 's'} · ${payText}.`;
+        } catch {
           portalStatus.className = 'alert alert-error';
           portalStatus.textContent = 'Could not load department settings.';
         }
       }
 
-      document.getElementById('demo-student-fill').addEventListener('click', () => {
-        autofillStudentLogin();
-        verifyIndexNumber();
-      });
-      document.getElementById('demo-admin-fill').addEventListener('click', autofillAdminLogin);
-
-      async function verifyIndexNumber() {
-        const indexNumber = normalizeIndexNumber(indexInput.value);
-        if (indexNumber && indexInput.value !== indexNumber) {
-          indexInput.value = indexNumber;
-        }
-        if (!indexNumber) {
-          indexVerified = false;
-          verifiedIndex = '';
-          indexStatus.textContent = 'Enter your index to verify it exists.';
-          indexStatus.className = 'meta field-hint';
+      async function afterStudentAuth(data, alertEl) {
+        API.setSession(data.token, data.user);
+        const sessions = await Busy.run(() => API.request('/student/sessions'), 'Loading your sessions…');
+        if (sessions.has_booking) {
+          Busy.show('Opening your portal…');
+          window.location.href = '/student.html';
           return;
         }
-
-        indexStatus.textContent = 'Checking index…';
-        indexStatus.className = 'meta field-hint';
-        try {
-          const result = await API.request(`/auth/student/verify-index?index_number=${encodeURIComponent(indexNumber)}`);
-          if (!result.exists) {
-            indexVerified = false;
-            verifiedIndex = '';
-            indexStatus.textContent = 'Index number not found in the database.';
-            indexStatus.className = 'meta field-hint field-hint-error';
-            return;
-          }
-          indexVerified = true;
-          verifiedIndex = normalizeIndexNumber(result.student.index_number);
-          indexInput.value = verifiedIndex;
-          indexStatus.textContent = `Verified: ${result.student.full_name}`;
-          indexStatus.className = 'meta field-hint field-hint-ok';
-          const nameInput = document.getElementById('student-name');
-          if (!nameInput.value.trim()) nameInput.value = result.student.full_name;
-        } catch (err) {
-          indexVerified = false;
-          verifiedIndex = '';
-          indexStatus.textContent = err.message;
-          indexStatus.className = 'meta field-hint field-hint-error';
-        }
+        showAlert(alertEl, data.message || 'Signed in. Pay with Paystack to continue.', 'ok');
+        openPaymentModal(sessions);
       }
-
-      indexInput.addEventListener('blur', verifyIndexNumber);
-      indexInput.addEventListener('change', verifyIndexNumber);
 
       function openPaymentModal(sessions = null) {
         hideAlert(paymentAlert);
@@ -241,9 +249,11 @@
         paymentForm.classList.toggle('hidden', alreadyPaid);
         paymentPaid.classList.toggle('hidden', !alreadyPaid);
         if (!alreadyPaid) {
-          autofillModalMomo();
+          const emailEl = document.getElementById('modal-email');
+          const current = API.getUser();
+          if (emailEl && current?.email && !emailEl.value) emailEl.value = current.email;
           PaystackCheckout.hydrateForm(paymentForm).catch(() => {});
-          document.getElementById('modal-email').focus();
+          emailEl?.focus();
         }
       }
 
@@ -280,9 +290,51 @@
         window.location.href = '/student.html';
       });
 
-      document.getElementById('demo-modal-momo-fill').addEventListener('click', () => {
-        if (!paymentModal.dataset.busyLock) autofillModalMomo();
-      });
+      document.getElementById('student-register-form').addEventListener(
+        'submit',
+        onceAsync(async (e) => {
+          e.preventDefault();
+          hideAlert(registerAlert);
+          const form = e.target;
+          const submitBtn = form.querySelector('button[type="submit"]');
+          const fd = new FormData(form);
+          const password = String(fd.get('password') || '');
+          const confirm = String(fd.get('password_confirm') || '');
+          if (password !== confirm) {
+            showAlert(registerAlert, 'Passwords do not match');
+            return;
+          }
+
+          const indexNumber = normalizeIndexNumber(fd.get('index_number'));
+          document.getElementById('reg-index').value = indexNumber;
+
+          lockControls(form, true);
+          setBusyButton(submitBtn, true, 'Creating account…');
+          try {
+            const data = await Busy.run(
+              () =>
+                API.request('/auth/student/register', {
+                  method: 'POST',
+                  body: {
+                    full_name: String(fd.get('full_name') || '').trim(),
+                    index_number: indexNumber,
+                    level: String(fd.get('level') || '').trim(),
+                    programme: String(fd.get('programme') || '').trim(),
+                    email: String(fd.get('email') || '').trim(),
+                    password,
+                  },
+                }),
+              'Creating account…'
+            );
+            await afterStudentAuth(data, registerAlert);
+          } catch (err) {
+            showAlert(registerAlert, err.message);
+          } finally {
+            lockControls(form, false);
+            setBusyButton(submitBtn, false);
+          }
+        })
+      );
 
       document.getElementById('student-login-form').addEventListener(
         'submit',
@@ -293,41 +345,23 @@
           const submitBtn = form.querySelector('button[type="submit"]');
           const fd = new FormData(form);
           const indexNumber = normalizeIndexNumber(fd.get('index_number'));
-          indexInput.value = indexNumber;
+          document.getElementById('student-index').value = indexNumber;
 
           lockControls(form, true);
           setBusyButton(submitBtn, true, 'Signing in…');
           try {
-            if (!indexVerified || verifiedIndex !== indexNumber) {
-              await verifyIndexNumber();
-              if (!indexVerified || verifiedIndex !== indexNumber) {
-                showAlert(studentAlert, 'Verify a valid index number before continuing.', 'info');
-                return;
-              }
-            }
-
             const data = await Busy.run(
               () =>
                 API.request('/auth/student/login', {
                   method: 'POST',
                   body: {
-                    full_name: String(fd.get('full_name') || '').trim(),
                     index_number: indexNumber,
+                    password: String(fd.get('password') || ''),
                   },
                 }),
               'Signing in…'
             );
-            API.setSession(data.token, data.user);
-
-            const sessions = await Busy.run(() => API.request('/student/sessions'), 'Loading your sessions…');
-            if (sessions.has_booking) {
-              Busy.show('Opening your portal…');
-              window.location.href = '/student.html';
-              return;
-            }
-
-            showAlert(studentAlert, 'Sign in successful. Pay with Paystack to continue.', 'ok');
-            openPaymentModal(sessions);
+            await afterStudentAuth(data, studentAlert);
           } catch (err) {
             showAlert(studentAlert, err.message);
           } finally {

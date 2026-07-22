@@ -45,11 +45,28 @@ async function main() {
   if (!overview.schedules) throw new Error('Admin overview missing schedules');
 
   const suffix = Date.now();
+  const indexNumber = `PS/CSC/22/${String(900 + (suffix % 90)).padStart(3, '0')}`;
+  const email = `smoke.${suffix}@test.ucc.edu.gh`;
+  const password = 'smoke-pass-123';
+
+  const registered = await request('/api/auth/student/register', {
+    method: 'POST',
+    body: {
+      full_name: `Smoke Student ${suffix}`,
+      index_number: indexNumber,
+      level: '200',
+      programme: 'BSc Computer Science',
+      email,
+      password,
+    },
+  });
+  if (!registered.token) throw new Error('Student register failed');
+
   const studentLogin = await request('/api/auth/student/login', {
     method: 'POST',
     body: {
-      full_name: 'CSC Student 003',
-      index_number: 'PS/CSC/22/003',
+      index_number: indexNumber,
+      password,
     },
   });
   const studentHeaders = { Authorization: `Bearer ${studentLogin.token}` };

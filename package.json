@@ -7,6 +7,8 @@
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
     "db:schema": "node scripts/migrate.js",
+    "db:student-auth": "node scripts/migrate-student-auth.js",
+    "db:student-unique": "node scripts/migrate-student-unique.js",
     "db:paystack": "node scripts/migrate-paystack.js",
     "paystack:connect": "node scripts/connect-paystack.js",
     "paystack:sync": "node scripts/sync-paystack.js",

@@ -310,9 +310,8 @@ router.get('/config', authRequired(['student']), async (_req, res) => {
         { code: 'vod', label: 'Telecel Cash' },
         { code: 'atl', label: 'ATMoney' },
       ],
-      test_momo_number: '0551234987',
       callback_hint:
-        'Live MoMo: student enters their number, approves with PIN on the phone. Test keys cannot debit real wallets.',
+        'Enter your MoMo number, then approve the debit with your PIN on the phone.',
     });
   } catch (err) {
     console.error(err);

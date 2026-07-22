@@ -106,7 +106,7 @@ const PaystackCheckout = {
     const feeLabel = `GHS ${Number(config.fee).toFixed(0)}`;
     const live = Boolean(config.public_key && String(config.public_key).includes('_live_'));
     const modeLabel = config.mock
-      ? 'Demo debit (add Paystack keys to .env or run npm run paystack:connect)'
+      ? 'Paystack is not configured — set live keys in .env'
       : live
         ? 'Live MoMo debit · PIN on student’s phone'
         : 'Paystack TEST keys · real wallets will NOT be charged';
@@ -121,11 +121,11 @@ const PaystackCheckout = {
       } else if (live) {
         hint.classList.remove('hidden');
         hint.textContent =
-          'Enter the student’s own MoMo number. They will approve the debit with their PIN on the phone.';
+          'Enter your own MoMo number. Approve the debit with your PIN on the phone.';
       } else {
         hint.classList.remove('hidden');
         hint.textContent =
-          'TEST keys cannot debit real MoMo. Put LIVE keys in .env (pk_live_ / sk_live_) or run npm run paystack:connect to charge student numbers.';
+          'TEST keys cannot debit real MoMo. Put LIVE keys in .env (pk_live_ / sk_live_).';
       }
     }
 
@@ -146,7 +146,7 @@ const PaystackCheckout = {
     if (submit) {
       submit.dataset.paystackReady = config.mock || config.public_key ? '1' : '0';
       if (!submit.dataset.idlePayLabel) submit.dataset.idlePayLabel = submit.textContent;
-      submit.textContent = config.mock ? 'Pay (demo debit)' : submit.dataset.idlePayLabel || 'Pay with Paystack';
+      submit.textContent = config.mock ? 'Paystack not configured' : submit.dataset.idlePayLabel || 'Pay with Paystack';
     }
 
     return config;

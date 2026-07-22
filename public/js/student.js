@@ -4,7 +4,7 @@
 
   const DAY_ORDER = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-  setText('user-chip', `${user.full_name} · ${user.index_number}`);
+  setText('user-chip', `${user.full_name} · ${user.index_number}${user.level ? ` · L${user.level}` : ''}`);
   bindClick('logout-btn', () => {
     API.clearSession();
     window.location.href = '/';
@@ -26,9 +26,10 @@
     hideAlert(paymentAlert);
     paymentModal?.classList.remove('hidden');
     delete paymentModal?.dataset.busyLock;
-    autofillModalMomo();
+    const emailEl = $('modal-email');
+    if (emailEl && user?.email && !emailEl.value) emailEl.value = user.email;
     PaystackCheckout.hydrateForm('payment-modal-form').catch(() => {});
-    $('modal-email')?.focus();
+    emailEl?.focus();
   }
 
   function closePaymentModal() {
@@ -318,9 +319,6 @@
 
   bindClick('open-payment-modal', openPaymentModal);
   bindClick('payment-modal-cancel', closePaymentModal);
-  bindClick('demo-modal-momo-fill', () => {
-    if (!paymentModal?.dataset.busyLock) autofillModalMomo();
-  });
   closeOnBackdropOrEscape(paymentModal, closePaymentModal);
 
   $('payment-modal-form')?.addEventListener(

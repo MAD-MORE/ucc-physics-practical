@@ -979,7 +979,6 @@
             },
           });
           form.reset();
-          autofillSchedule();
           await Promise.all([loadSchedules(), loadOverview()]);
         }, 'Creating day/time slot…');
         showAlert(alertEl, 'Day/time slot saved', 'ok');

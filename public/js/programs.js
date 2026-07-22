@@ -10,45 +10,6 @@ const PROGRAM_LIST = [
   { code: 'STA', label: 'BSc Statistics' },
 ];
 
-function buildIndexNumber(programCode, seq) {
-  return `${FACULTY_CODE}/${programCode}/22/${String(seq).padStart(3, '0')}`;
-}
-
-/** Must match scripts/seed.js student generation. */
-function seededStudentBySeq(seq) {
-  const n = Number(seq);
-  if (n === 1) {
-    return {
-      full_name: 'Ama Mensah',
-      index_number: buildIndexNumber('PHY', 1),
-      phone_number: '0244000001',
-      email: 'ama.mensah@test.ucc.edu.gh',
-      program_group: `${FACULTY_CODE}/PHY`,
-      program: 'BSc Physics',
-    };
-  }
-  if (n === 101) {
-    return {
-      full_name: 'No Payment Student',
-      index_number: buildIndexNumber('PHY', 101),
-      phone_number: '0244000101',
-      email: 'nopayment.101@test.ucc.edu.gh',
-      program_group: `${FACULTY_CODE}/PHY`,
-      program: 'BSc Physics',
-    };
-  }
-  const prog = PROGRAM_LIST[(n - 2) % PROGRAM_LIST.length];
-  const padded = String(n).padStart(3, '0');
-  return {
-    full_name: `${prog.code} Student ${padded}`,
-    index_number: buildIndexNumber(prog.code, n),
-    phone_number: `0244${String(n).padStart(6, '0')}`,
-    email: `${prog.code.toLowerCase()}.${padded}@test.ucc.edu.gh`,
-    program_group: `${FACULTY_CODE}/${prog.code}`,
-    program: prog.label,
-  };
-}
-
 function normalizeIndexNumber(indexNumber) {
   return String(indexNumber || '')
     .trim()

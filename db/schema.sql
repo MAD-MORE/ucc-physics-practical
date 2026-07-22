@@ -1,10 +1,20 @@
 -- UCC Physics Practical Registration System (Neon / Postgres)
 
 CREATE TABLE IF NOT EXISTS students (
-  student_id   SERIAL PRIMARY KEY,
-  index_number VARCHAR(20)  NOT NULL UNIQUE,
-  full_name    VARCHAR(100) NOT NULL
+  student_id    SERIAL PRIMARY KEY,
+  index_number  VARCHAR(20)  NOT NULL UNIQUE,
+  full_name     VARCHAR(100) NOT NULL,
+  email         VARCHAR(120) NOT NULL UNIQUE,
+  password_hash VARCHAR(255),
+  programme     VARCHAR(100),
+  level         VARCHAR(20)
 );
+
+-- Case-insensitive uniqueness (enforced by migrate-student-unique.js on existing DBs)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_students_index_unique_ci
+  ON students (UPPER(TRIM(index_number)));
+CREATE UNIQUE INDEX IF NOT EXISTS idx_students_email_unique_ci
+  ON students (LOWER(TRIM(email)));
 
 CREATE TABLE IF NOT EXISTS admins (
   admin_id      SERIAL PRIMARY KEY,

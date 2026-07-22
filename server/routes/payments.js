@@ -127,6 +127,45 @@ async function deleteFailedPaymentAttempt(reference) {
   `;
 }
 
+function sameId(a, b) {
+  if (a == null || b == null) return false;
+  return String(a) === String(b);
+}
+
+/** Pending signups own rows via pending_signup_id; students via student_id. */
+async function findOwnedPayment(req, reference) {
+  const rows = await sql`
+    SELECT payment_id, student_id, pending_signup_id, status, amount, email, phone_number, paystack_reference
+    FROM payments
+    WHERE paystack_reference = ${reference}
+    LIMIT 1
+  `;
+  const payment = rows[0];
+  if (!payment) return null;
+
+  if (req.user.role === 'student' && sameId(payment.student_id, req.user.id)) {
+    return payment;
+  }
+  if (req.user.role === 'pending' && sameId(payment.pending_signup_id, req.user.id)) {
+    return payment;
+  }
+  return null;
+}
+
+/** Keep DB reference in sync if Paystack returns a different one. */
+async function syncPaystackReference(localReference, gatewayReference) {
+  const next = String(gatewayReference || '').trim();
+  const current = String(localReference || '').trim();
+  if (!next || !current || next === current) return current;
+  await sql`
+    UPDATE payments
+    SET paystack_reference = ${next}
+    WHERE paystack_reference = ${current}
+      AND status = 'pending'
+  `;
+  return next;
+}
+
 async function initializePayment(req, res) {
   try {
     const email = normalizeEmail(req.body.email);
@@ -235,7 +274,7 @@ async function initializePayment(req, res) {
       res.status(201).json({
         mock: false,
         already_paid: false,
-        reference: init.data.reference || reference,
+        reference: await syncPaystackReference(reference, init.data.reference),
         access_code: init.data.access_code,
         authorization_url: init.data.authorization_url,
         public_key: getPublicKey(),
@@ -263,24 +302,15 @@ async function verifyPayment(req, res) {
       return res.status(400).json({ error: 'Payment reference is required' });
     }
 
-    const owned = await sql`
-      SELECT payment_id, student_id, pending_signup_id, status, amount, email, phone_number, paystack_reference
-      FROM payments
-      WHERE paystack_reference = ${reference}
-        AND (
-          (${req.user.role} = 'student' AND student_id = ${req.user.id})
-          OR (${req.user.role} = 'pending' AND pending_signup_id = ${req.user.id})
-        )
-      LIMIT 1
-    `;
-    if (!owned[0]) {
+    const owned = await findOwnedPayment(req, reference);
+    if (!owned) {
       return res.status(404).json({ error: 'Payment not found' });
     }
 
-    if (owned[0].status === 'success' && owned[0].student_id) {
+    if (owned.status === 'success' && owned.student_id) {
       const finalized = await finalizePendingPayment(reference);
       return res.json({
-        payment: finalized.payment || owned[0],
+        payment: finalized.payment || owned,
         token: finalized.token || undefined,
         user: finalized.user || undefined,
         message: 'Payment already confirmed. You can register for a session now.',
@@ -303,18 +333,18 @@ async function verifyPayment(req, res) {
     const gatewayStatus = String(data.status || '').toLowerCase();
 
     if (gatewayStatus === 'success') {
-      const expectedPesewas = amountToPesewas(owned[0].amount);
+      const expectedPesewas = amountToPesewas(owned.amount);
       const paidCurrency = String(data.currency || '').toUpperCase();
       const expectedCurrency = getCurrency();
       if (Number(data.amount) !== expectedPesewas || paidCurrency !== expectedCurrency) {
         await deleteFailedPaymentAttempt(reference);
         return res.status(402).json({
-          error: `Paid amount/currency did not match the practical fee (${expectedCurrency} ${Number(owned[0].amount).toFixed(2)})`,
+          error: `Paid amount/currency did not match the practical fee (${expectedCurrency} ${Number(owned.amount).toFixed(2)})`,
         });
       }
 
       const phoneFromPaystack =
-        normalizePhone(data.authorization?.mobile || data.customer?.phone) || owned[0].phone_number;
+        normalizePhone(data.authorization?.mobile || data.customer?.phone) || owned.phone_number;
 
       const finalized = await finalizePendingPayment(reference, {
         phoneNumber: phoneFromPaystack,
@@ -499,13 +529,15 @@ async function chargeMomoPayment(req, res) {
       const data = charge.data || {};
       const status = String(data.status || '').toLowerCase();
 
+      const gatewayReference = await syncPaystackReference(reference, data.reference);
+
       if (status === 'success') {
-        const finalized = await finalizePendingPayment(reference, { phoneNumber });
+        const finalized = await finalizePendingPayment(gatewayReference, { phoneNumber });
         return res.status(201).json({
           mock: false,
           already_paid: false,
           payment: finalized.payment,
-          reference,
+          reference: gatewayReference,
           status: 'success',
           token: finalized.token || undefined,
           user: finalized.user || undefined,
@@ -514,7 +546,7 @@ async function chargeMomoPayment(req, res) {
       }
 
       if (status === 'failed' || status === 'timeout') {
-        await deleteFailedPaymentAttempt(reference);
+        await deleteFailedPaymentAttempt(gatewayReference);
         let error = data.message || data.gateway_response || 'MoMo debit failed. Try again.';
         if (!liveMode && /test mobile money number/i.test(error)) {
           error =
@@ -527,7 +559,7 @@ async function chargeMomoPayment(req, res) {
         return res.status(201).json({
           mock: false,
           already_paid: false,
-          reference: data.reference || reference,
+          reference: gatewayReference,
           status: 'send_otp',
           needs_otp: true,
           display_text:
@@ -543,7 +575,7 @@ async function chargeMomoPayment(req, res) {
       return res.status(201).json({
         mock: false,
         already_paid: false,
-        reference: data.reference || reference,
+        reference: gatewayReference,
         status: status || 'pay_offline',
         display_text:
           data.display_text ||
@@ -585,19 +617,13 @@ async function submitMomoOtp(req, res) {
       return res.status(400).json({ error: 'Enter the OTP or voucher code from your phone' });
     }
 
-    const owned = await sql`
-      SELECT payment_id, student_id, status, amount, phone_number, paystack_reference
-      FROM payments
-      WHERE paystack_reference = ${reference}
-        AND student_id = ${req.user.id}
-      LIMIT 1
-    `;
-    if (!owned[0]) {
+    const owned = await findOwnedPayment(req, reference);
+    if (!owned) {
       return res.status(404).json({ error: 'Payment not found' });
     }
-    if (owned[0].status === 'success') {
+    if (owned.status === 'success') {
       return res.json({
-        payment: owned[0],
+        payment: owned,
         status: 'success',
         message: 'Payment already confirmed. You can register now.',
       });
@@ -610,22 +636,25 @@ async function submitMomoOtp(req, res) {
     const submitted = await submitChargeOtp({ reference, otp });
     const data = submitted.data || {};
     const status = String(data.status || '').toLowerCase();
+    const gatewayReference = await syncPaystackReference(reference, data.reference);
 
     if (status === 'success') {
-      const payment = await markPaymentSuccess(reference, {
-        phoneNumber: owned[0].phone_number,
+      const finalized = await finalizePendingPayment(gatewayReference, {
+        phoneNumber: owned.phone_number,
         paidAt: data.paid_at || data.transaction_date,
       });
       return res.json({
         status: 'success',
-        reference,
-        payment,
-        message: `GHS ${Number(payment.amount).toFixed(0)} debited. You can register now.`,
+        reference: gatewayReference,
+        payment: finalized.payment,
+        token: finalized.token || undefined,
+        user: finalized.user || undefined,
+        message: `GHS ${Number(finalized.payment.amount).toFixed(0)} debited. You can register now.`,
       });
     }
 
     if (status === 'failed' || status === 'timeout') {
-      await deleteFailedPaymentAttempt(reference);
+      await deleteFailedPaymentAttempt(gatewayReference);
       return res.status(402).json({
         error: data.message || data.gateway_response || 'OTP / voucher was not accepted. Try again.',
       });
@@ -635,7 +664,7 @@ async function submitMomoOtp(req, res) {
       return res.status(400).json({
         error: data.display_text || data.message || 'Enter a valid OTP / voucher code',
         needs_otp: true,
-        reference,
+        reference: gatewayReference,
         display_text: data.display_text || '',
       });
     }
@@ -643,7 +672,7 @@ async function submitMomoOtp(req, res) {
     // Still processing after OTP — poll verify
     return res.json({
       status: status || 'pending',
-      reference,
+      reference: gatewayReference,
       wait_for_phone: true,
       poll_seconds: 120,
       display_text: data.display_text || 'Confirming payment…',

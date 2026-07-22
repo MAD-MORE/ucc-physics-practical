@@ -409,6 +409,7 @@ const PaystackCheckout = {
               resolve(
                 await this.waitForMomoApproval(reference, {
                   seconds: submitted.poll_seconds || 120,
+                  root,
                 })
               );
             } finally {
@@ -445,7 +446,7 @@ const PaystackCheckout = {
   },
 
   /** Poll verify until success/fail or timeout (MoMo phone approval). */
-  async waitForMomoApproval(reference, { seconds = 180, onTick } = {}) {
+  async waitForMomoApproval(reference, { seconds = 180, onTick, root } = {}) {
     const deadline = Date.now() + seconds * 1000;
     let lastError = null;
     while (Date.now() < deadline) {
@@ -458,13 +459,24 @@ const PaystackCheckout = {
           return result;
         }
         if (result.pending) {
+          if (result.status === 'send_otp' && root) {
+            return this.waitForOtpSubmission(root, reference, {
+              display_text: result.message,
+            });
+          }
           if (typeof onTick === 'function') onTick(result.message);
           await this.sleep(3000);
           continue;
         }
       } catch (err) {
         lastError = err;
-        // Definitive failure from API — stop polling
+        const msg = String(err.message || '');
+        // Brief race: charge just created / reference syncing — keep waiting a bit
+        if (/payment not found/i.test(msg) && Date.now() + 9000 < deadline) {
+          if (typeof onTick === 'function') onTick('Confirming payment…');
+          await this.sleep(3000);
+          continue;
+        }
         throw err;
       }
       await this.sleep(3000);
@@ -517,6 +529,7 @@ const PaystackCheckout = {
         try {
           return await this.waitForMomoApproval(charged.reference, {
             seconds: charged.poll_seconds || 180,
+            root,
             onTick(msg) {
               if (waitEl && msg) waitEl.textContent = msg;
             },

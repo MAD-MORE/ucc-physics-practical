@@ -34,6 +34,35 @@ function normalizeEmail(email) {
   return value;
 }
 
+/** Turn raw Paystack/MoMo gateway codes into actionable copy for students. */
+function friendlyPaystackError(raw, { phone } = {}) {
+  const text = String(raw || '').trim();
+  if (!text) return 'MoMo debit failed. Try again or use bank transfer / card.';
+
+  const upper = text.toUpperCase();
+  if (upper.includes('LOW_BALANCE') || upper.includes('PAYEE_LIMIT') || upper.includes('NOT_ALLOWED')) {
+    const phoneHint = phone ? ` on ${phone}` : '';
+    return (
+      `MoMo could not debit${phoneHint}. Check: enough balance, correct network (MTN/ATMoney/Telecel), ` +
+      `and that MoMo payments are allowed on this number. Or pay with bank transfer / card instead.`
+    );
+  }
+  if (/insufficient|low balance/i.test(text)) {
+    return 'Insufficient MoMo balance. Top up and try again, or pay with bank transfer / card.';
+  }
+  if (/invalid.*phone|unknown subscriber|not registered/i.test(text)) {
+    return 'That phone number is not registered for the selected MoMo network. Check the number and network.';
+  }
+  if (/declined|do not honor|not permitted/i.test(text)) {
+    return 'The MoMo provider declined this payment. Try another number, bank transfer, or card.';
+  }
+  // Avoid dumping pure SCREAMING_SNAKE codes alone
+  if (/^[A-Z0-9_]+$/.test(text) && text.includes('_')) {
+    return `${text.replace(/_/g, ' ').toLowerCase()}. Try another MoMo number, or pay with bank transfer / card.`;
+  }
+  return text;
+}
+
 async function getUnusedSuccessPayment(studentId) {
   const rows = await sql`
     SELECT payment_id, email, phone_number, amount, paid_at, paystack_reference, status
@@ -547,8 +576,11 @@ async function chargeMomoPayment(req, res) {
 
       if (status === 'failed' || status === 'timeout') {
         await deleteFailedPaymentAttempt(gatewayReference);
-        let error = data.message || data.gateway_response || 'MoMo debit failed. Try again.';
-        if (!liveMode && /test mobile money number/i.test(error)) {
+        let error = friendlyPaystackError(
+          data.message || data.gateway_response || 'MoMo debit failed. Try again.',
+          { phone: phoneNumber }
+        );
+        if (!liveMode && /test mobile money number/i.test(String(data.message || data.gateway_response || ''))) {
           error =
             'Paystack test keys cannot debit real MoMo wallets. Put LIVE keys (pk_live_ / sk_live_) in .env or run npm run paystack:connect, then students can pay with their own numbers.';
         }
@@ -589,8 +621,11 @@ async function chargeMomoPayment(req, res) {
       });
     } catch (chargeErr) {
       await deleteFailedPaymentAttempt(reference);
-      let detail = chargeErr.paystack?.data?.message || chargeErr.message || 'MoMo charge failed';
-      if (!liveMode && /test mobile money number|test transaction/i.test(detail)) {
+      let detail = friendlyPaystackError(
+        chargeErr.paystack?.data?.message || chargeErr.message || 'MoMo charge failed',
+        { phone: phoneNumber }
+      );
+      if (!liveMode && /test mobile money number|test transaction/i.test(String(chargeErr.message || ''))) {
         detail =
           'Paystack test keys cannot debit real MoMo wallets. Put LIVE keys (pk_live_ / sk_live_) in .env or run npm run paystack:connect.';
       }
@@ -601,7 +636,10 @@ async function chargeMomoPayment(req, res) {
     }
   } catch (err) {
     console.error(err);
-    const detail = err.paystack?.data?.message || err.message || 'MoMo charge failed';
+    const detail = friendlyPaystackError(
+      err.paystack?.data?.message || err.message || 'MoMo charge failed',
+      { phone: normalizePhone(req.body?.phone_number) }
+    );
     res.status(err.status || 500).json({ error: detail });
   }
 }

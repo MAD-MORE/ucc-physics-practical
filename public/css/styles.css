@@ -878,11 +878,65 @@ body.is-busy main {
   margin-bottom: 1rem;
 }
 
+.payment-panel {
+  max-width: 520px;
+  margin: 0 auto 2rem;
+}
+
 .modal-actions {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
   margin-top: 0.85rem;
+}
+
+.pay-method-fieldset {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem 1rem;
+  margin: 0 0 0.95rem;
+}
+
+.pay-method-fieldset legend {
+  padding: 0 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.pay-method-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.pay-method-option {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.pay-method-option input {
+  width: auto;
+  margin: 0;
+}
+
+.pay-method-option:has(input:checked) {
+  border-color: var(--teal);
+  background: rgba(13, 92, 99, 0.06);
 }
 
 .field-hint {

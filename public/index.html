@@ -150,28 +150,55 @@
       </section>
     </div>
 
-    <p class="footer-note">University of Cape Coast · Department of Physics · Practical Registration System</p>
-  </main>
-
-  <div id="payment-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="payment-modal-title" data-paystack-root>
-    <div class="modal-card">
-      <h3 id="payment-modal-title">Pay with Paystack</h3>
+    <section id="payment-panel" class="panel payment-panel hidden" data-paystack-root aria-labelledby="payment-panel-title">
+      <h2 id="payment-panel-title">Pay with Paystack</h2>
       <p class="lede">
-        Amount due: <strong data-paystack-fee>GHS —</strong>. Account is created only after payment succeeds.
+        Amount due: <strong data-paystack-fee>GHS —</strong>. Your account is created only after this payment succeeds.
       </p>
-      <p class="meta" data-paystack-mode style="margin-top:-0.35rem;">Loading payment options…</p>
-      <p class="meta hidden" data-paystack-test-hint style="margin-top:0.35rem;"></p>
-      <p class="alert alert-info hidden" data-paystack-wait style="margin-top:0.75rem;">
-        Waiting for MoMo PIN on your phone…
-      </p>
+      <p class="meta" data-paystack-mode>Loading payment options…</p>
+      <p class="meta hidden" data-paystack-test-hint></p>
+      <p class="alert alert-info hidden" data-paystack-wait>Waiting for MoMo PIN on your phone…</p>
       <div id="payment-modal-alert" class="alert hidden"></div>
+
       <div id="payment-modal-paid" class="hidden">
-        <p class="meta">Payment already completed for registration.</p>
+        <p class="meta">Payment already completed. Continue to pick a session.</p>
         <div class="modal-actions">
           <button class="btn btn-primary" type="button" id="payment-modal-continue">Continue to registration</button>
           <button class="btn btn-secondary" type="button" id="payment-modal-cancel-paid">Cancel</button>
         </div>
       </div>
+
+      <form id="payment-modal-form" data-paystack-form>
+        <div class="field">
+          <label for="modal-email">Email (Paystack receipt)</label>
+          <input id="modal-email" name="email" data-paystack-field="email" type="email" autocomplete="email" placeholder="you@example.com" required />
+        </div>
+        <fieldset class="field pay-method-fieldset">
+          <legend>Pay with</legend>
+          <div class="pay-method-options">
+            <label class="pay-method-option"><input type="radio" name="pay_method" value="momo" checked /> MoMo (PIN on phone)</label>
+            <label class="pay-method-option"><input type="radio" name="pay_method" value="bank" /> Bank transfer</label>
+            <label class="pay-method-option"><input type="radio" name="pay_method" value="card" /> Card</label>
+          </div>
+        </fieldset>
+        <div class="field" data-momo-only>
+          <label for="modal-provider">MoMo network</label>
+          <select id="modal-provider" name="provider" data-paystack-field="provider" required>
+            <option value="mtn">MTN MoMo</option>
+            <option value="atl">ATMoney</option>
+            <option value="vod">Telecel Cash</option>
+          </select>
+        </div>
+        <div class="field" data-momo-only>
+          <label for="modal-phone">Your MoMo phone number</label>
+          <input id="modal-phone" name="phone_number" data-paystack-field="phone_number" type="tel" autocomplete="tel" placeholder="e.g. 0244123456" minlength="10" maxlength="15" required />
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-primary" type="submit" data-paystack-pay>Send PIN prompt</button>
+          <button class="btn btn-secondary" type="button" id="payment-modal-cancel">Cancel</button>
+        </div>
+      </form>
+
       <form id="payment-momo-otp-form" class="hidden" data-paystack-otp-form>
         <p class="alert alert-info" data-paystack-otp-hint style="margin-bottom:1rem;">
           Enter the OTP or voucher code from your phone.
@@ -182,41 +209,13 @@
         </div>
         <div class="modal-actions">
           <button class="btn btn-primary" type="submit" data-paystack-otp-submit>Confirm code</button>
-          <button class="btn btn-secondary" type="button" data-paystack-otp-cancel>Cancel</button>
+          <button class="btn btn-secondary" type="button" data-paystack-otp-cancel>Back</button>
         </div>
       </form>
-      <form id="payment-modal-form" data-paystack-form>
-        <div class="field">
-          <label for="modal-email">Email (Paystack receipt)</label>
-          <input id="modal-email" name="email" data-paystack-field="email" type="email" autocomplete="email" placeholder="you@example.com" required />
-        </div>
-        <div class="field">
-          <span class="meta">Pay with</span>
-          <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:0.35rem;">
-            <label><input type="radio" name="pay_method" value="momo" checked /> MoMo (PIN on phone)</label>
-            <label><input type="radio" name="pay_method" value="bank" /> Bank transfer</label>
-            <label><input type="radio" name="pay_method" value="card" /> Card</label>
-          </div>
-        </div>
-        <div class="field" data-momo-only>
-          <label for="modal-provider">MoMo network</label>
-          <select id="modal-provider" name="provider" data-paystack-field="provider">
-            <option value="mtn">MTN MoMo</option>
-            <option value="atl">ATMoney</option>
-            <option value="vod">Telecel Cash</option>
-          </select>
-        </div>
-        <div class="field" data-momo-only>
-          <label for="modal-phone">Your MoMo phone number</label>
-          <input id="modal-phone" name="phone_number" data-paystack-field="phone_number" type="tel" autocomplete="tel" placeholder="e.g. 0244123456" minlength="10" maxlength="15" />
-        </div>
-        <div class="modal-actions">
-          <button class="btn btn-primary" type="submit" data-paystack-pay>Send PIN prompt</button>
-          <button class="btn btn-secondary" type="button" id="payment-modal-cancel">Cancel</button>
-        </div>
-      </form>
-    </div>
-  </div>
+    </section>
+
+    <p class="footer-note">University of Cape Coast · Department of Physics · Practical Registration System</p>
+  </main>
 
   <script src="https://js.paystack.co/v1/inline.js" data-paystack-inline></script>
   <script src="/js/api.js"></script>
@@ -269,7 +268,8 @@
       const user = API.getUser();
       if (user?.role === 'admin') window.location.href = '/admin.html';
 
-      const paymentModal = document.getElementById('payment-modal');
+      const paymentPanel = document.getElementById('payment-panel');
+      const authLayout = document.querySelector('.auth-layout');
       const paymentForm = document.getElementById('payment-modal-form');
       const paymentPaid = document.getElementById('payment-modal-paid');
       const paymentAlert = document.getElementById('payment-modal-alert');
@@ -344,47 +344,54 @@
       }
 
       function resetPaymentUi() {
-        PaystackCheckout.hideOtpStep(paymentModal);
+        PaystackCheckout.hideOtpStep(paymentPanel);
         paymentForm.classList.remove('hidden');
+        paymentForm.style.display = '';
         paymentPaid.classList.add('hidden');
-        const waitEl = paymentModal.querySelector('[data-paystack-wait]');
-        waitEl?.classList.add('hidden');
+        paymentPanel.querySelector('[data-paystack-wait]')?.classList.add('hidden');
         lockControls(paymentForm, false);
-        const otpForm = paymentModal.querySelector('[data-paystack-otp-form]');
-        if (otpForm) lockControls(otpForm, false);
+        const otpForm = paymentPanel.querySelector('[data-paystack-otp-form]');
+        if (otpForm) {
+          otpForm.classList.add('hidden');
+          lockControls(otpForm, false);
+        }
         const submitBtn = paymentForm.querySelector('[data-paystack-pay], button[type="submit"]');
         if (submitBtn) setBusyButton(submitBtn, false);
-        delete paymentModal.dataset.busyLock;
+        delete paymentPanel.dataset.busyLock;
         hideAlert(paymentAlert);
       }
 
       function openPaymentModal(sessions = null) {
         resetPaymentUi();
-        paymentModal.classList.remove('hidden');
+        authLayout?.classList.add('hidden');
+        paymentPanel.classList.remove('hidden');
         const alreadyPaid = Boolean(sessions?.unused_payment);
         paymentForm.classList.toggle('hidden', alreadyPaid);
         paymentPaid.classList.toggle('hidden', !alreadyPaid);
         if (!alreadyPaid) {
           const emailEl = document.getElementById('modal-email');
           const current = API.getUser();
-          if (emailEl && current?.email && !emailEl.value) emailEl.value = current.email;
-          PaystackCheckout.hydrateForm(paymentForm).catch(() => {});
+          if (emailEl && current?.email) emailEl.value = current.email;
+          PaystackCheckout.hydrateForm(paymentForm).catch((err) => {
+            showAlert(paymentAlert, err.message || 'Could not load payment options');
+          });
           emailEl?.focus();
-          paymentModal.scrollTop = 0;
+          paymentPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
       }
 
       function closePaymentModal() {
-        if (paymentModal.dataset.busyLock) return;
+        if (paymentPanel.dataset.busyLock) return;
         resetPaymentUi();
-        paymentModal.classList.add('hidden');
+        paymentPanel.classList.add('hidden');
+        authLayout?.classList.remove('hidden');
         paymentForm.reset();
       }
 
       async function dismissPaymentAndSignOut(message) {
-        if (paymentModal.dataset.busyLock) return;
-        const user = API.getUser();
-        if (user?.role === 'pending') {
+        if (paymentPanel.dataset.busyLock) return;
+        const pendingUser = API.getUser();
+        if (pendingUser?.role === 'pending') {
           try {
             await API.request('/auth/student/cancel-pending', { method: 'POST', body: {} });
           } catch {
@@ -397,12 +404,6 @@
         showAuthTab('register', { updateHash: true });
       }
 
-      closeOnBackdropOrEscape(paymentModal, () => {
-        dismissPaymentAndSignOut(
-          'Payment cancelled. No account was saved — complete payment when you create an account.'
-        );
-      });
-
       document.getElementById('payment-modal-cancel').addEventListener('click', () => {
         dismissPaymentAndSignOut(
           'Payment cancelled. No account was saved — complete payment when you create an account.'
@@ -414,7 +415,7 @@
       });
 
       document.getElementById('payment-modal-continue').addEventListener('click', () => {
-        if (paymentModal.dataset.busyLock) return;
+        if (paymentPanel.dataset.busyLock) return;
         window.location.href = '/student.html';
       });
 
@@ -547,7 +548,7 @@
           const form = e.target;
           const submitBtn = form.querySelector('button[type="submit"]');
 
-          paymentModal.dataset.busyLock = '1';
+          paymentPanel.dataset.busyLock = '1';
           lockControls(form, true);
           setBusyButton(submitBtn, true, 'Debiting…');
           try {

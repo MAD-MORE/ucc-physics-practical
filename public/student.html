@@ -109,17 +109,17 @@
           <label for="modal-email">Email (Paystack receipt)</label>
           <input id="modal-email" name="email" data-paystack-field="email" type="email" autocomplete="email" placeholder="you@example.com" required />
         </div>
-        <div class="field">
-          <span class="meta">Pay with</span>
-          <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:0.35rem;">
-            <label><input type="radio" name="pay_method" value="momo" checked /> MoMo (PIN on phone)</label>
-            <label><input type="radio" name="pay_method" value="bank" /> Bank transfer</label>
-            <label><input type="radio" name="pay_method" value="card" /> Card</label>
+        <fieldset class="field pay-method-fieldset">
+          <legend>Pay with</legend>
+          <div class="pay-method-options">
+            <label class="pay-method-option"><input type="radio" name="pay_method" value="momo" checked /> MoMo (PIN on phone)</label>
+            <label class="pay-method-option"><input type="radio" name="pay_method" value="bank" /> Bank transfer</label>
+            <label class="pay-method-option"><input type="radio" name="pay_method" value="card" /> Card</label>
           </div>
-        </div>
+        </fieldset>
         <div class="field" data-momo-only>
           <label for="modal-provider">MoMo network</label>
-          <select id="modal-provider" name="provider" data-paystack-field="provider">
+          <select id="modal-provider" name="provider" data-paystack-field="provider" required>
             <option value="mtn">MTN MoMo</option>
             <option value="atl">ATMoney</option>
             <option value="vod">Telecel Cash</option>
@@ -127,7 +127,7 @@
         </div>
         <div class="field" data-momo-only>
           <label for="modal-phone">Your MoMo phone number</label>
-          <input id="modal-phone" name="phone_number" data-paystack-field="phone_number" type="tel" autocomplete="tel" placeholder="e.g. 0244123456" minlength="10" maxlength="15" />
+          <input id="modal-phone" name="phone_number" data-paystack-field="phone_number" type="tel" autocomplete="tel" placeholder="e.g. 0244123456" minlength="10" maxlength="15" required />
         </div>
         <div class="modal-actions">
           <button class="btn btn-primary" type="submit" data-paystack-pay>Send PIN prompt</button>

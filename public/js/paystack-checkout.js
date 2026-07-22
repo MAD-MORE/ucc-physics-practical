@@ -325,14 +325,20 @@ const PaystackCheckout = {
     });
   },
 
-  /** Show OTP / voucher step when Paystack returns send_otp. */
+  /** Show OTP / voucher step without hiding the main pay form. */
   showOtpStep(root, { reference, display_text } = {}) {
     const payForm = root?.querySelector('[data-paystack-form]');
     const otpForm = root?.querySelector('[data-paystack-otp-form]');
     const hint = root?.querySelector('[data-paystack-otp-hint]');
     if (!otpForm) return null;
 
-    payForm?.classList.add('hidden');
+    // Keep pay form visible but disable it while OTP is entered
+    if (payForm) {
+      payForm.classList.remove('hidden');
+      payForm.querySelectorAll('input, select, button').forEach((el) => {
+        el.disabled = true;
+      });
+    }
     otpForm.classList.remove('hidden');
     if (hint) {
       hint.textContent =
@@ -346,8 +352,12 @@ const PaystackCheckout = {
     const otpInput = otpForm.querySelector('[name="otp"], [data-paystack-field="otp"]');
     if (otpInput) {
       otpInput.value = '';
+      otpInput.disabled = false;
       otpInput.focus();
     }
+    otpForm.querySelectorAll('button').forEach((el) => {
+      el.disabled = false;
+    });
     return otpForm;
   },
 
@@ -355,7 +365,14 @@ const PaystackCheckout = {
     const payForm = root?.querySelector('[data-paystack-form]');
     const otpForm = root?.querySelector('[data-paystack-otp-form]');
     otpForm?.classList.add('hidden');
-    payForm?.classList.remove('hidden');
+    if (payForm) {
+      payForm.classList.remove('hidden');
+      payForm.style.display = '';
+      payForm.querySelectorAll('input, select, button').forEach((el) => {
+        if (el.dataset.lockOwned === '1') return;
+        el.disabled = false;
+      });
+    }
     const otpInput = otpForm?.querySelector('[name="otp"], [data-paystack-field="otp"]');
     if (otpInput) otpInput.value = '';
   },

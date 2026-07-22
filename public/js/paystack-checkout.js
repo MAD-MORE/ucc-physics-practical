@@ -144,7 +144,8 @@ const PaystackCheckout = {
         hint.classList.add('hidden');
       } else if (live) {
         hint.classList.remove('hidden');
-        hint.textContent = 'MTN MoMo: type your PIN on the phone when prompted. Or pay by bank transfer / card.';
+        hint.textContent =
+          'MTN: after you tap pay, enter your MoMo PIN on the phone when prompted — no voucher code on this site.';
       } else {
         hint.classList.remove('hidden');
         hint.textContent =
@@ -559,15 +560,18 @@ const PaystackCheckout = {
         return charged;
       }
 
-      if (charged.needs_otp || charged.status === 'send_otp') {
+      // MTN: never show website voucher/OTP — only wait for phone PIN (unless Paystack forces send_otp later)
+      const useWebsiteOtp =
+        provider !== 'mtn' && (charged.needs_otp || charged.status === 'send_otp');
+
+      if (useWebsiteOtp) {
         const waitEl = root.querySelector('[data-paystack-wait]');
         if (waitEl && (charged.display_text || charged.ussd_code)) {
           waitEl.classList.remove('hidden');
           waitEl.textContent = charged.ussd_code
-            ? `${charged.display_text || 'Complete Telecel auth on your phone.'} USSD: ${charged.ussd_code}`
+            ? `${charged.display_text || 'Complete auth on your phone.'} USSD: ${charged.ussd_code}`
             : charged.display_text;
         }
-        // Telecel often needs voucher entry AND polling
         if (charged.wait_for_phone) {
           const otpPromise = this.waitForOtpSubmission(root, charged.reference, {
             display_text: charged.display_text || charged.message,
@@ -591,15 +595,14 @@ const PaystackCheckout = {
         });
       }
 
-      if (charged.wait_for_phone) {
+      if (charged.wait_for_phone || charged.status === 'pay_offline' || charged.status === 'send_otp') {
+        this.hideOtpStep(root);
         const waitEl = root.querySelector('[data-paystack-wait]');
         if (waitEl) {
           waitEl.classList.remove('hidden');
           waitEl.textContent =
             charged.display_text ||
-            (provider === 'vod'
-              ? 'Telecel usually does not send a push PIN. Dial *110# (or the USSD shown) to approve, then wait here.'
-              : 'Check your phone now and type your MoMo PIN to approve the payment.');
+            'Check your phone now and type your MTN MoMo PIN to approve the payment. Do not enter a voucher here.';
         }
         try {
           return await this.waitForMomoApproval(charged.reference, {

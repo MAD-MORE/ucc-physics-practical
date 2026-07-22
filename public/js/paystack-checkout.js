@@ -153,7 +153,7 @@ const PaystackCheckout = {
       } else if (live) {
         hint.classList.remove('hidden');
         hint.textContent =
-          'After you pay, your phone opens a Reply screen: Enter MM PIN — type your MoMo PIN there, not on this website.';
+          'MTN MoMo opens Paystack, then your phone shows Reply → Enter MM PIN. Type the PIN on the phone, not here.';
       } else {
         hint.classList.remove('hidden');
         hint.textContent =
@@ -217,7 +217,7 @@ const PaystackCheckout = {
         if (!submit.dataset.idlePayLabel) submit.dataset.idlePayLabel = submit.textContent;
         submit.textContent =
           method === 'momo'
-            ? 'Send MTN PIN prompt'
+            ? 'Pay with MTN MoMo'
             : method === 'bank'
               ? 'Open bank transfer'
               : 'Pay with card';
@@ -437,67 +437,30 @@ const PaystackCheckout = {
   },
 
   /**
-   * MoMo → Charge API → PIN/USSD on the phone only (no website voucher).
-   * Bank transfer / card → Paystack Popup.
+   * MoMo / bank / card → Paystack Inline Popup.
+   * MoMo uses channels: ['mobile_money'] so MTN pushes Enter MM PIN on the phone
+   * (not a website OTP/voucher form).
    */
   async pay(formOrSelector) {
     const details = this.collectDetails(formOrSelector);
-    const { form, email, phone_number, provider, method } = details;
+    const { form, email, phone_number, method } = details;
     const root = form.closest('[data-paystack-root]') || document;
     this.hideOtpStep(root);
 
-    if (method === 'momo') {
-      const charged = await Busy.run(
-        () =>
-          API.request('/student/payments/momo', {
-            method: 'POST',
-            body: { email, phone_number, provider: 'mtn' },
-          }),
-        'Sending MTN MoMo PIN prompt…'
-      );
-
-      form.dataset.paystackReference = charged.reference || charged.payment?.paystack_reference || '';
-      this.ensureHidden(form, 'reference', form.dataset.paystackReference);
-
-      if (charged.already_paid || charged.mock || charged.status === 'success' || charged.payment) {
-        return charged;
-      }
-
-      // Always wait on the handset for MTN — the MM PIN Reply dialog is on the phone
-      this.hideOtpStep(root);
-      const waitEl = root.querySelector('[data-paystack-wait]');
-      const pinHint =
-        charged.display_text ||
-        `Watch ${phone_number}: MTN will show a Reply screen — “Enter MM PIN”. Type your MoMo PIN on the phone and tap Reply. Do not type a code here.`;
-      if (waitEl) {
-        waitEl.classList.remove('hidden');
-        waitEl.innerHTML = `<strong>Phone prompt sent.</strong> ${this.escapeHtml(pinHint)}`;
-      }
-      try {
-        return await this.waitForMomoApproval(charged.reference, {
-          seconds: charged.poll_seconds || 180,
-          root,
-          onTick(msg) {
-            if (waitEl && msg) {
-              waitEl.innerHTML = `<strong>Waiting for your MM PIN…</strong> ${PaystackCheckout.escapeHtml(msg)}`;
-            }
-          },
-        });
-      } finally {
-        waitEl?.classList.add('hidden');
-        this.hideOtpStep(root);
-      }
-    }
-
-    const channels = method === 'bank' ? ['bank_transfer'] : ['card'];
+    const channels =
+      method === 'momo' ? ['mobile_money'] : method === 'bank' ? ['bank_transfer'] : ['card'];
     const busyLabel =
-      method === 'bank' ? 'Opening bank transfer…' : 'Opening card checkout…';
+      method === 'momo'
+        ? 'Opening MTN MoMo checkout…'
+        : method === 'bank'
+          ? 'Opening bank transfer…'
+          : 'Opening card checkout…';
 
     const init = await Busy.run(
       () =>
         API.request('/student/payments/initialize', {
           method: 'POST',
-          body: { email, phone_number, channels },
+          body: { email, phone_number, channels, provider: method === 'momo' ? 'mtn' : undefined },
         }),
       busyLabel
     );
@@ -510,10 +473,18 @@ const PaystackCheckout = {
     }
 
     const waitEl = root.querySelector('[data-paystack-wait]');
-    if (waitEl && method === 'bank') {
-      waitEl.classList.remove('hidden');
-      waitEl.textContent =
-        'Paystack will show a bank account. Transfer the exact amount from your bank or MoMo (GIP / Instant Pay).';
+    if (waitEl) {
+      if (method === 'momo') {
+        waitEl.classList.remove('hidden');
+        waitEl.innerHTML =
+          '<strong>Complete MoMo in the Paystack window.</strong> Your phone should open a Reply screen — <strong>Enter MM PIN</strong>. Type your MoMo PIN on the phone (not on this website).';
+      } else if (method === 'bank') {
+        waitEl.classList.remove('hidden');
+        waitEl.textContent =
+          'Paystack will show a bank account. Transfer the exact amount from your bank or MoMo (GIP / Instant Pay).';
+      } else {
+        waitEl.classList.add('hidden');
+      }
     }
 
     try {
@@ -546,6 +517,7 @@ const PaystackCheckout = {
       );
     } finally {
       waitEl?.classList.add('hidden');
+      this.hideOtpStep(root);
     }
   },
 

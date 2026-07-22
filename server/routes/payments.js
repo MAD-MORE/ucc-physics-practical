@@ -232,7 +232,26 @@ async function initializePayment(req, res) {
     const requested = Array.isArray(req.body.channels)
       ? req.body.channels.map((c) => String(c).trim()).filter(Boolean)
       : [];
-    const channels = requested.length ? requested : getChannels();
+    const allowedChannelSets = {
+      mobile_money: ['mobile_money'],
+      bank_transfer: ['bank_transfer'],
+      card: ['card'],
+    };
+    let channels = requested.length ? requested : getChannels();
+    // Single-purpose checkouts from the UI (MoMo / bank / card)
+    if (requested.length === 1 && allowedChannelSets[requested[0]]) {
+      channels = allowedChannelSets[requested[0]];
+    } else if (requested.length > 1) {
+      // Reject mixed custom channel lists from the client — use defaults or a single known channel
+      const only = requested.find((c) => allowedChannelSets[c]);
+      channels = only ? allowedChannelSets[only] : getChannels();
+    }
+
+    if (channels.length === 1 && channels[0] === 'mobile_money' && !phoneNumber) {
+      return res.status(400).json({
+        error: 'Enter the MTN MoMo number that will receive the Enter MM PIN prompt',
+      });
+    }
 
     await sql`
       INSERT INTO payments (
@@ -284,6 +303,7 @@ async function initializePayment(req, res) {
           index_number: owner.index_number || '',
           full_name: owner.full_name || req.user.name || '',
           phone_number: phoneNumber,
+          momo_provider: channels[0] === 'mobile_money' ? 'mtn' : undefined,
           custom_fields: [
             {
               display_name: 'Index number',
@@ -295,9 +315,31 @@ async function initializePayment(req, res) {
               variable_name: 'full_name',
               value: owner.full_name || req.user.name || '',
             },
+            ...(phoneNumber
+              ? [
+                  {
+                    display_name: 'MoMo phone',
+                    variable_name: 'phone_number',
+                    value: phoneNumber,
+                  },
+                ]
+              : []),
           ],
         },
       });
+
+      console.log('[paystack:initialize]', {
+        reference: init.data?.reference || reference,
+        channels,
+        status: init.data?.status,
+        message: init.message,
+        display_text: init.data?.display_text,
+      });
+
+      const checkoutMessage =
+        channels[0] === 'mobile_money'
+          ? 'Paystack MoMo ready — complete in the popup, then Enter MM PIN on your phone'
+          : 'Paystack checkout ready';
 
       res.status(201).json({
         mock: false,
@@ -311,7 +353,7 @@ async function initializePayment(req, res) {
         amount_pesewas: amountToPesewas(amount),
         currency,
         channels,
-        message: 'Paystack checkout ready',
+        message: checkoutMessage,
       });
     } catch (initErr) {
       await deleteFailedPaymentAttempt(reference);
@@ -437,7 +479,7 @@ router.get('/config', authRequired(['student', 'pending']), async (_req, res) =>
       require_live: true,
       momo_providers: [{ code: 'mtn', label: 'MTN MoMo' }],
       callback_hint:
-        'MTN MoMo: type your PIN on the phone when prompted. Bank transfer and card also available.',
+        'MTN MoMo: Paystack popup opens, then Enter MM PIN on your phone Reply screen.',
     });
   } catch (err) {
     console.error(err);

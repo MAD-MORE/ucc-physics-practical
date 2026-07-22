@@ -158,9 +158,8 @@
       <p class="meta" data-paystack-mode>Loading payment options…</p>
       <p class="meta hidden" data-paystack-test-hint></p>
       <p class="alert alert-info hidden" data-paystack-wait>
-        <strong>Watch your phone</strong> — MTN will open a Reply screen asking you to
-        <strong>Enter MM PIN</strong>. Type your MoMo PIN there (on the phone), then tap Reply.
-        Do not enter any code on this website.
+        <strong>Paystack MoMo is open.</strong> Complete it in the popup — your phone should show
+        <strong>Reply → Enter MM PIN</strong>. Type your MoMo PIN on the phone, not on this website.
       </p>
       <div id="payment-modal-alert" class="alert hidden"></div>
 
@@ -192,30 +191,15 @@
             <option value="atl" disabled>ATMoney — blocked for now</option>
             <option value="vod" disabled>Telecel Cash — blocked for now</option>
           </select>
-          <p class="meta" style="margin-top:0.35rem;">Only MTN MoMo is available right now.</p>
+          <p class="meta" style="margin-top:0.35rem;">Only MTN MoMo is available right now. PIN is entered on your phone.</p>
         </div>
         <div class="field" data-momo-only>
           <label for="modal-phone">Your MoMo phone number</label>
           <input id="modal-phone" name="phone_number" data-paystack-field="phone_number" type="tel" autocomplete="tel" placeholder="e.g. 0244123456" minlength="10" maxlength="15" required />
         </div>
         <div class="modal-actions">
-          <button class="btn btn-primary" type="submit" data-paystack-pay>Send PIN prompt</button>
+          <button class="btn btn-primary" type="submit" data-paystack-pay>Pay with MTN MoMo</button>
           <button class="btn btn-secondary" type="button" id="payment-modal-cancel">Cancel</button>
-        </div>
-      </form>
-
-      <form id="payment-momo-otp-form" class="hidden" data-paystack-otp-form aria-hidden="true" style="display:none !important">
-        <!-- Kept for later Telecel voucher support; hidden while MTN-only (PIN on phone). -->
-        <p class="alert alert-info" data-paystack-otp-hint style="margin-bottom:1rem;">
-          Enter the OTP or voucher code from your phone.
-        </p>
-        <div class="field">
-          <label for="modal-otp">OTP / voucher code</label>
-          <input id="modal-otp" name="otp" data-paystack-field="otp" inputmode="numeric" autocomplete="one-time-code" placeholder="Code from phone / USSD" disabled />
-        </div>
-        <div class="modal-actions">
-          <button class="btn btn-primary" type="submit" data-paystack-otp-submit disabled>Confirm code</button>
-          <button class="btn btn-secondary" type="button" data-paystack-otp-cancel disabled>Back</button>
         </div>
       </form>
     </section>
@@ -356,11 +340,6 @@
         paymentPaid.classList.add('hidden');
         paymentPanel.querySelector('[data-paystack-wait]')?.classList.add('hidden');
         lockControls(paymentForm, false);
-        const otpForm = paymentPanel.querySelector('[data-paystack-otp-form]');
-        if (otpForm) {
-          otpForm.classList.add('hidden');
-          lockControls(otpForm, false);
-        }
         const submitBtn = paymentForm.querySelector('[data-paystack-pay], button[type="submit"]');
         if (submitBtn) setBusyButton(submitBtn, false);
         delete paymentPanel.dataset.busyLock;

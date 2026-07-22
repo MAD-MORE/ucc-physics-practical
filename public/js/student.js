@@ -21,22 +21,34 @@
   let openSessionCount = 0;
   let actionLocked = false;
 
+  function resetPaymentUi() {
+    PaystackCheckout.hideOtpStep(paymentModal);
+    const form = $('payment-modal-form');
+    form?.classList.remove('hidden');
+    paymentModal?.querySelector('[data-paystack-wait]')?.classList.add('hidden');
+    if (form) lockControls(form, false);
+    const otpForm = paymentModal?.querySelector('[data-paystack-otp-form]');
+    if (otpForm) lockControls(otpForm, false);
+    delete paymentModal?.dataset.busyLock;
+    hideAlert(paymentAlert);
+  }
+
   function openPaymentModal() {
     if (actionLocked) return;
-    hideAlert(paymentAlert);
+    resetPaymentUi();
     paymentModal?.classList.remove('hidden');
-    delete paymentModal?.dataset.busyLock;
     const emailEl = $('modal-email');
     if (emailEl && user?.email && !emailEl.value) emailEl.value = user.email;
     PaystackCheckout.hydrateForm('payment-modal-form').catch(() => {});
     emailEl?.focus();
+    if (paymentModal) paymentModal.scrollTop = 0;
   }
 
   function closePaymentModal() {
     if (paymentModal?.dataset.busyLock) return;
+    resetPaymentUi();
     paymentModal?.classList.add('hidden');
     $('payment-modal-form')?.reset();
-    hideAlert(paymentAlert);
   }
 
   function setSessionActionsLocked(locked) {
@@ -348,9 +360,10 @@
         );
         await loadSessions({ quiet: true });
       } catch (err) {
+        resetPaymentUi();
         showAlert(paymentAlert, err.message);
       } finally {
-        delete paymentModal.dataset.busyLock;
+        delete paymentModal?.dataset.busyLock;
         lockControls(form, false);
         setBusyButton(submitBtn, false);
       }

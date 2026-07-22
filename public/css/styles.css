@@ -769,10 +769,18 @@ th {
   inset: 0;
   z-index: 40;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   padding: 1rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background: rgba(18, 32, 34, 0.55);
+}
+
+@media (min-height: 720px) {
+  .modal-backdrop {
+    align-items: center;
+  }
 }
 
 #app-confirm-modal {
@@ -847,12 +855,16 @@ body.is-busy main {
 
 .modal-card {
   width: min(440px, 100%);
+  max-height: min(92vh, 720px);
+  margin: auto 0;
   padding: 1.35rem 1.4rem 1.25rem;
   border-radius: var(--radius);
   border: 1px solid var(--line);
   background: linear-gradient(160deg, #fffdf8, #f6f1e6);
   box-shadow: 0 18px 40px rgba(18, 32, 34, 0.28);
   animation: rise 0.25s ease;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .modal-card h3 {

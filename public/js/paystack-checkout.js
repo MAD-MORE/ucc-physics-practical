@@ -108,8 +108,8 @@ const PaystackCheckout = {
     const modeLabel = config.mock
       ? 'Paystack is not configured — set live keys in .env'
       : live
-        ? 'Live payments · MoMo PIN on phone · bank transfer · card'
-        : 'Paystack TEST keys · real wallets will NOT be charged';
+        ? 'Live · MoMo, bank transfer, or card'
+        : 'TEST keys · real wallets will NOT be charged';
 
     this.setText('[data-paystack-fee]', feeLabel, root);
     this.setText('[data-paystack-mode]', modeLabel, root);
@@ -120,8 +120,7 @@ const PaystackCheckout = {
         hint.classList.add('hidden');
       } else if (live) {
         hint.classList.remove('hidden');
-        hint.textContent =
-          'MoMo: choose MTN/ATMoney — type your PIN on the phone when prompted. Or pay by bank transfer / card.';
+        hint.textContent = 'Choose MoMo, bank transfer, or card below — then pay.';
       } else {
         hint.classList.remove('hidden');
         hint.textContent =

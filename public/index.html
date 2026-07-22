@@ -157,9 +157,7 @@
     <div class="modal-card">
       <h3 id="payment-modal-title">Pay with Paystack</h3>
       <p class="lede">
-        Your account is ready only after payment. Amount due: <strong data-paystack-fee>GHS —</strong>.
-        MoMo sends a <strong>realtime PIN prompt</strong> to your phone. You can also pay by bank transfer or card.
-        Until payment succeeds, nothing is saved for sign-in.
+        Amount due: <strong data-paystack-fee>GHS —</strong>. Account is created only after payment succeeds.
       </p>
       <p class="meta" data-paystack-mode style="margin-top:-0.35rem;">Loading payment options…</p>
       <p class="meta hidden" data-paystack-test-hint style="margin-top:0.35rem;"></p>
@@ -345,10 +343,24 @@
         openPaymentModal(sessions);
       }
 
-      function openPaymentModal(sessions = null) {
-        hideAlert(paymentAlert);
-        paymentModal.classList.remove('hidden');
+      function resetPaymentUi() {
+        PaystackCheckout.hideOtpStep(paymentModal);
+        paymentForm.classList.remove('hidden');
+        paymentPaid.classList.add('hidden');
+        const waitEl = paymentModal.querySelector('[data-paystack-wait]');
+        waitEl?.classList.add('hidden');
+        lockControls(paymentForm, false);
+        const otpForm = paymentModal.querySelector('[data-paystack-otp-form]');
+        if (otpForm) lockControls(otpForm, false);
+        const submitBtn = paymentForm.querySelector('[data-paystack-pay], button[type="submit"]');
+        if (submitBtn) setBusyButton(submitBtn, false);
         delete paymentModal.dataset.busyLock;
+        hideAlert(paymentAlert);
+      }
+
+      function openPaymentModal(sessions = null) {
+        resetPaymentUi();
+        paymentModal.classList.remove('hidden');
         const alreadyPaid = Boolean(sessions?.unused_payment);
         paymentForm.classList.toggle('hidden', alreadyPaid);
         paymentPaid.classList.toggle('hidden', !alreadyPaid);
@@ -358,16 +370,15 @@
           if (emailEl && current?.email && !emailEl.value) emailEl.value = current.email;
           PaystackCheckout.hydrateForm(paymentForm).catch(() => {});
           emailEl?.focus();
+          paymentModal.scrollTop = 0;
         }
       }
 
       function closePaymentModal() {
         if (paymentModal.dataset.busyLock) return;
+        resetPaymentUi();
         paymentModal.classList.add('hidden');
-        paymentForm.classList.remove('hidden');
-        paymentPaid.classList.add('hidden');
         paymentForm.reset();
-        hideAlert(paymentAlert);
       }
 
       async function dismissPaymentAndSignOut(message) {
@@ -552,10 +563,8 @@
             Busy.show('Opening your portal…');
             window.location.href = '/student.html';
           } catch (err) {
+            resetPaymentUi();
             showAlert(paymentAlert, err.message);
-            delete paymentModal.dataset.busyLock;
-            lockControls(form, false);
-            setBusyButton(submitBtn, false);
           }
         })
       );

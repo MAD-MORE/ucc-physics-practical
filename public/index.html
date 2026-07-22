@@ -13,7 +13,7 @@
       <span class="brand-sub">Practical Registration</span>
     </div>
     <nav class="nav-links">
-      <a href="#student-login">Student</a>
+      <a href="#student-auth">Student</a>
       <a href="#admin-login">Admin</a>
     </nav>
   </header>
@@ -35,79 +35,105 @@
       </div>
     </section>
 
-    <div class="grid-2">
-      <section class="panel" id="student-register">
-        <h2>Student registration</h2>
-        <p class="lede">Create your account with name, index, level, programme, email, and password.</p>
-        <div id="register-alert" class="alert hidden"></div>
-        <form id="student-register-form">
-          <div class="field">
-            <label for="reg-name">Full name</label>
-            <input id="reg-name" name="full_name" autocomplete="name" placeholder="Ama Mensah" required />
-          </div>
-          <div class="field">
-            <label for="reg-index">Index number</label>
-            <input id="reg-index" name="index_number" autocomplete="off" placeholder="PS/PHY/22/001" required />
-          </div>
-          <div class="field">
-            <label for="reg-level">Level</label>
-            <select id="reg-level" name="level" required>
-              <option value="">Select level</option>
-              <option value="100">Level 100</option>
-              <option value="200">Level 200</option>
-              <option value="300">Level 300</option>
-              <option value="400">Level 400</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="reg-programme">Programme</label>
-            <select id="reg-programme" name="programme" required>
-              <option value="">Select programme</option>
-              <option value="BSc Physics">BSc Physics</option>
-              <option value="BSc Computer Science">BSc Computer Science</option>
-              <option value="BSc Mathematics">BSc Mathematics</option>
-              <option value="BSc Chemistry">BSc Chemistry</option>
-              <option value="BSc Biology">BSc Biology</option>
-              <option value="BSc Statistics">BSc Statistics</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="reg-email">Email</label>
-            <input id="reg-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required />
-          </div>
-          <div class="field">
-            <label for="reg-password">Password</label>
-            <input id="reg-password" name="password" type="password" autocomplete="new-password" minlength="6" placeholder="At least 6 characters" required />
-          </div>
-          <div class="field">
-            <label for="reg-password-confirm">Confirm password</label>
-            <input id="reg-password-confirm" name="password_confirm" type="password" autocomplete="new-password" minlength="6" required />
-          </div>
-          <button class="btn btn-primary" type="submit">Create account</button>
-        </form>
+    <div class="auth-layout">
+      <section class="panel auth-bundle" id="student-auth">
+        <h2>Student access</h2>
+        <p class="lede">One place to create your account or sign back in.</p>
+
+        <div class="tabs auth-tabs" role="tablist" aria-label="Student access">
+          <button type="button" class="tab active" role="tab" id="tab-register" aria-selected="true" aria-controls="student-register" data-auth-tab="register">
+            Register
+          </button>
+          <button type="button" class="tab" role="tab" id="tab-login" aria-selected="false" aria-controls="student-login" data-auth-tab="login">
+            Sign in
+          </button>
+        </div>
+
+        <div id="student-register" class="auth-panel" role="tabpanel" aria-labelledby="tab-register" data-auth-panel="register">
+          <p class="auth-hint">Fill your details, then pay. Your account is only saved after Paystack confirms payment.</p>
+          <div id="register-alert" class="alert hidden"></div>
+          <form id="student-register-form">
+            <div class="field">
+              <label for="reg-name">Full name</label>
+              <input id="reg-name" name="full_name" autocomplete="name" placeholder="Ama Mensah" required />
+            </div>
+            <div class="field">
+              <label for="reg-index">Index number</label>
+              <div class="index-segments" data-index-segments>
+                <input id="reg-index" name="index_number" type="hidden" value="" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="field">
+                <label for="reg-level">Level</label>
+                <select id="reg-level" name="level" required>
+                  <option value="">Select level</option>
+                  <option value="100">Level 100</option>
+                  <option value="200">Level 200</option>
+                  <option value="300">Level 300</option>
+                  <option value="400">Level 400</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="reg-programme">Programme</label>
+                <select id="reg-programme" name="programme" required>
+                  <option value="">Select programme</option>
+                  <option value="BSc Physics">BSc Physics</option>
+                  <option value="BSc Computer Science">BSc Computer Science</option>
+                  <option value="BSc Mathematics">BSc Mathematics</option>
+                  <option value="BSc Chemistry">BSc Chemistry</option>
+                  <option value="BSc Biology">BSc Biology</option>
+                  <option value="BSc Statistics">BSc Statistics</option>
+                </select>
+              </div>
+            </div>
+            <div class="field">
+              <label for="reg-email">Email</label>
+              <input id="reg-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required />
+            </div>
+            <div class="form-row">
+              <div class="field">
+                <label for="reg-password">Password</label>
+                <input id="reg-password" name="password" type="password" autocomplete="new-password" minlength="6" placeholder="At least 6 characters" required />
+              </div>
+              <div class="field">
+                <label for="reg-password-confirm">Confirm password</label>
+                <input id="reg-password-confirm" name="password_confirm" type="password" autocomplete="new-password" minlength="6" required />
+              </div>
+            </div>
+            <button class="btn btn-primary btn-block" type="submit">Continue to payment</button>
+          </form>
+          <p class="auth-switch">
+            Already paid and registered?
+            <button type="button" class="linkish" data-auth-tab="login">Sign in</button>
+          </p>
+        </div>
+
+        <div id="student-login" class="auth-panel hidden" role="tabpanel" aria-labelledby="tab-login" data-auth-panel="login" hidden>
+          <p class="auth-hint">Sign in with your index number and password.</p>
+          <div id="student-alert" class="alert hidden"></div>
+          <form id="student-login-form">
+            <div class="field">
+              <label for="student-index">Index number</label>
+              <div class="index-segments" data-index-segments>
+                <input id="student-index" name="index_number" type="hidden" value="" />
+              </div>
+            </div>
+            <div class="field">
+              <label for="student-password">Password</label>
+              <input id="student-password" name="password" type="password" autocomplete="current-password" required />
+            </div>
+            <button class="btn btn-primary btn-block" type="submit">Sign in</button>
+          </form>
+          <p class="auth-switch">
+            New here?
+            <button type="button" class="linkish" data-auth-tab="register">Create an account</button>
+          </p>
+        </div>
       </section>
 
-      <section class="panel" id="student-login">
-        <h2>Student sign in</h2>
-        <p class="lede">Sign in with your index number and password.</p>
-        <div id="student-alert" class="alert hidden"></div>
-        <form id="student-login-form">
-          <div class="field">
-            <label for="student-index">Index number</label>
-            <input id="student-index" name="index_number" placeholder="PS/PHY/22/001" required />
-          </div>
-          <div class="field">
-            <label for="student-password">Password</label>
-            <input id="student-password" name="password" type="password" autocomplete="current-password" required />
-          </div>
-          <button class="btn btn-primary" type="submit">Sign in</button>
-        </form>
-      </section>
-    </div>
-
-    <div class="grid-2" style="margin-top:1.5rem;">
-      <section class="panel" id="admin-login">
-        <h2>Admin sign in</h2>
+      <section class="panel auth-admin" id="admin-login">
+        <h2>Admin</h2>
         <p class="lede">Set day/time slots and open or close registration.</p>
         <div id="admin-alert" class="alert hidden"></div>
         <form id="admin-login-form">
@@ -119,10 +145,9 @@
             <label for="admin-password">Password</label>
             <input id="admin-password" name="password" type="password" required />
           </div>
-          <button class="btn btn-primary" type="submit">Open admin console</button>
+          <button class="btn btn-primary btn-block" type="submit">Open admin console</button>
         </form>
       </section>
-      <div></div>
     </div>
 
     <p class="footer-note">University of Cape Coast · Department of Physics · Practical Registration System</p>
@@ -132,13 +157,14 @@
     <div class="modal-card">
       <h3 id="payment-modal-title">Pay with Paystack</h3>
       <p class="lede">
-        Your account is ready. Amount due: <strong data-paystack-fee>GHS —</strong>.
-        Enter your MoMo number — the fee is debited from that wallet after you enter your PIN on the phone.
+        Your account is ready only after payment. Amount due: <strong data-paystack-fee>GHS —</strong>.
+        MoMo sends a <strong>realtime PIN prompt</strong> to your phone. You can also pay by bank transfer or card.
+        Until payment succeeds, nothing is saved for sign-in.
       </p>
       <p class="meta" data-paystack-mode style="margin-top:-0.35rem;">Loading payment options…</p>
       <p class="meta hidden" data-paystack-test-hint style="margin-top:0.35rem;"></p>
       <p class="alert alert-info hidden" data-paystack-wait style="margin-top:0.75rem;">
-        Waiting for MoMo approval on your phone…
+        Waiting for MoMo PIN on your phone…
       </p>
       <div id="payment-modal-alert" class="alert hidden"></div>
       <div id="payment-modal-paid" class="hidden">
@@ -148,6 +174,19 @@
           <button class="btn btn-secondary" type="button" id="payment-modal-cancel-paid">Cancel</button>
         </div>
       </div>
+      <form id="payment-momo-otp-form" class="hidden" data-paystack-otp-form>
+        <p class="alert alert-info" data-paystack-otp-hint style="margin-bottom:1rem;">
+          Enter the OTP or voucher code from your phone.
+        </p>
+        <div class="field">
+          <label for="modal-otp">OTP / voucher code</label>
+          <input id="modal-otp" name="otp" data-paystack-field="otp" inputmode="numeric" autocomplete="one-time-code" placeholder="Code from phone / USSD" />
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-primary" type="submit" data-paystack-otp-submit>Confirm code</button>
+          <button class="btn btn-secondary" type="button" data-paystack-otp-cancel>Cancel</button>
+        </div>
+      </form>
       <form id="payment-modal-form" data-paystack-form>
         <div class="field">
           <label for="modal-email">Email (Paystack receipt)</label>
@@ -156,24 +195,25 @@
         <div class="field">
           <span class="meta">Pay with</span>
           <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:0.35rem;">
-            <label><input type="radio" name="pay_method" value="momo" checked /> MoMo (phone PIN)</label>
-            <label><input type="radio" name="pay_method" value="card" /> Card (Paystack popup)</label>
+            <label><input type="radio" name="pay_method" value="momo" checked /> MoMo (PIN on phone)</label>
+            <label><input type="radio" name="pay_method" value="bank" /> Bank transfer</label>
+            <label><input type="radio" name="pay_method" value="card" /> Card</label>
           </div>
         </div>
-        <div class="field">
+        <div class="field" data-momo-only>
           <label for="modal-provider">MoMo network</label>
-          <select id="modal-provider" name="provider" data-paystack-field="provider" required>
+          <select id="modal-provider" name="provider" data-paystack-field="provider">
             <option value="mtn">MTN MoMo</option>
-            <option value="vod">Telecel Cash</option>
             <option value="atl">ATMoney</option>
+            <option value="vod">Telecel Cash</option>
           </select>
         </div>
-        <div class="field">
+        <div class="field" data-momo-only>
           <label for="modal-phone">Your MoMo phone number</label>
-          <input id="modal-phone" name="phone_number" data-paystack-field="phone_number" type="tel" autocomplete="tel" placeholder="e.g. 0244123456" minlength="10" maxlength="15" required />
+          <input id="modal-phone" name="phone_number" data-paystack-field="phone_number" type="tel" autocomplete="tel" placeholder="e.g. 0244123456" minlength="10" maxlength="15" />
         </div>
         <div class="modal-actions">
-          <button class="btn btn-primary" type="submit" data-paystack-pay>Debit my MoMo</button>
+          <button class="btn btn-primary" type="submit" data-paystack-pay>Send PIN prompt</button>
           <button class="btn btn-secondary" type="button" id="payment-modal-cancel">Cancel</button>
         </div>
       </form>
@@ -186,6 +226,48 @@
   <script src="/js/paystack-checkout.js"></script>
   <script>
     (function () {
+      bindAllIndexNumberMasks();
+
+      const authRoot = document.getElementById('student-auth');
+      function showAuthTab(which, { updateHash = true } = {}) {
+        const mode = which === 'login' ? 'login' : 'register';
+        authRoot?.querySelectorAll('[data-auth-tab]').forEach((btn) => {
+          const on = btn.getAttribute('data-auth-tab') === mode;
+          btn.classList.toggle('active', on);
+          if (btn.getAttribute('role') === 'tab') btn.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+        authRoot?.querySelectorAll('[data-auth-panel]').forEach((panel) => {
+          const on = panel.getAttribute('data-auth-panel') === mode;
+          panel.classList.toggle('hidden', !on);
+          panel.hidden = !on;
+        });
+        if (updateHash) {
+          const hash = mode === 'login' ? '#student-login' : '#student-register';
+          if (location.hash !== hash) history.replaceState(null, '', hash);
+        }
+        const focusId = mode === 'login' ? 'student-index' : 'reg-name';
+        document.getElementById(focusId)?.focus({ preventScroll: true });
+      }
+
+      function applyHashAuth() {
+        const hash = (location.hash || '').toLowerCase();
+        if (hash === '#student-login') showAuthTab('login', { updateHash: false });
+        else if (hash === '#student-register' || hash === '#student-auth') {
+          showAuthTab('register', { updateHash: false });
+        }
+      }
+
+      document.querySelectorAll('[data-auth-tab]').forEach((el) => {
+        el.addEventListener('click', (e) => {
+          e.preventDefault();
+          showAuthTab(el.getAttribute('data-auth-tab'));
+          document.getElementById('student-auth')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      });
+
+      window.addEventListener('hashchange', applyHashAuth);
+      applyHashAuth();
+
       const user = API.getUser();
       if (user?.role === 'admin') window.location.href = '/admin.html';
 
@@ -201,12 +283,18 @@
 
       if (user?.role === 'student') {
         resumeStudentSession();
+      } else if (user?.role === 'pending') {
+        openPaymentModal(null);
       }
 
       async function resumeStudentSession() {
         try {
           const sessions = await API.request('/student/sessions');
           if (sessions.has_booking) {
+            window.location.href = '/student.html';
+            return;
+          }
+          if (sessions.unused_payment) {
             window.location.href = '/student.html';
             return;
           }
@@ -230,8 +318,25 @@
 
       async function afterStudentAuth(data, alertEl) {
         API.setSession(data.token, data.user);
+
+        if (data.requires_payment || data.user?.role === 'pending') {
+          showAlert(
+            alertEl,
+            data.message || 'Pay now to create your account. Sign-in will not work until payment succeeds.',
+            'info'
+          );
+          openPaymentModal(null);
+          return;
+        }
+
         const sessions = await Busy.run(() => API.request('/student/sessions'), 'Loading your sessions…');
         if (sessions.has_booking) {
+          Busy.show('Opening your portal…');
+          window.location.href = '/student.html';
+          return;
+        }
+        if (sessions.unused_payment) {
+          showAlert(alertEl, data.message || 'Signed in. You can register for a session.', 'ok');
           Busy.show('Opening your portal…');
           window.location.href = '/student.html';
           return;
@@ -265,19 +370,32 @@
         hideAlert(paymentAlert);
       }
 
-      function dismissPaymentAndSignOut(message) {
+      async function dismissPaymentAndSignOut(message) {
         if (paymentModal.dataset.busyLock) return;
+        const user = API.getUser();
+        if (user?.role === 'pending') {
+          try {
+            await API.request('/auth/student/cancel-pending', { method: 'POST', body: {} });
+          } catch {
+            /* ignore */
+          }
+        }
         closePaymentModal();
         API.clearSession();
         showAlert(studentAlert, message, 'info');
+        showAuthTab('register', { updateHash: true });
       }
 
       closeOnBackdropOrEscape(paymentModal, () => {
-        dismissPaymentAndSignOut('Payment is required before registration. Sign in again when ready.');
+        dismissPaymentAndSignOut(
+          'Payment cancelled. No account was saved — complete payment when you create an account.'
+        );
       });
 
       document.getElementById('payment-modal-cancel').addEventListener('click', () => {
-        dismissPaymentAndSignOut('Payment is required before registration. Sign in again when ready.');
+        dismissPaymentAndSignOut(
+          'Payment cancelled. No account was saved — complete payment when you create an account.'
+        );
       });
 
       document.getElementById('payment-modal-cancel-paid').addEventListener('click', () => {
@@ -305,10 +423,14 @@
           }
 
           const indexNumber = normalizeIndexNumber(fd.get('index_number'));
+          if (!isValidIndexNumber(indexNumber)) {
+            showAlert(registerAlert, indexFormatHint() + ' — example PS/CSC/24/0057');
+            return;
+          }
           document.getElementById('reg-index').value = indexNumber;
 
           lockControls(form, true);
-          setBusyButton(submitBtn, true, 'Creating account…');
+          setBusyButton(submitBtn, true, 'Continue to payment…');
           try {
             const data = await Busy.run(
               () =>
@@ -323,7 +445,7 @@
                     password,
                   },
                 }),
-              'Creating account…'
+              'Preparing payment…'
             );
             await afterStudentAuth(data, registerAlert);
           } catch (err) {
@@ -344,6 +466,10 @@
           const submitBtn = form.querySelector('button[type="submit"]');
           const fd = new FormData(form);
           const indexNumber = normalizeIndexNumber(fd.get('index_number'));
+          if (!isValidIndexNumber(indexNumber)) {
+            showAlert(studentAlert, indexFormatHint() + ' — example PS/CSC/24/0057');
+            return;
+          }
           document.getElementById('student-index').value = indexNumber;
 
           lockControls(form, true);
@@ -415,7 +541,14 @@
           setBusyButton(submitBtn, true, 'Debiting…');
           try {
             const data = await PaystackCheckout.pay(form);
-            showAlert(paymentAlert, data.message || 'Payment confirmed. Opening registration…', 'ok');
+            if (data.token && data.user) {
+              API.setSession(data.token, data.user);
+            }
+            showAlert(
+              paymentAlert,
+              data.message || 'Payment confirmed. Account created — opening registration…',
+              'ok'
+            );
             Busy.show('Opening your portal…');
             window.location.href = '/student.html';
           } catch (err) {

@@ -17,15 +17,24 @@ async function main() {
   let secretKey = secretArg;
 
   if (!publicKey || !secretKey) {
-    console.log('Paystack connect');
+    console.log('Paystack connect (LIVE keys required)');
     console.log('1) Open https://dashboard.paystack.com/#/settings/developer');
-    console.log('2) Switch to Live (or Test), copy Public + Secret keys');
+    console.log('2) Switch to Live mode, copy Public + Secret keys');
     console.log('3) Keys are saved to .env only (never commit that file)');
     console.log('');
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    publicKey = (await ask(rl, 'Public key (pk_live_… or pk_test_…): ')).trim();
-    secretKey = (await ask(rl, 'Secret key (sk_live_… or sk_test_…): ')).trim();
+    publicKey = (await ask(rl, 'Public key (pk_live_…): ')).trim();
+    secretKey = (await ask(rl, 'Secret key (sk_live_…): ')).trim();
     rl.close();
+  }
+
+  if (publicKey.includes('_test_') || secretKey.includes('_test_')) {
+    console.error('TEST keys are not allowed. Use pk_live_ / sk_live_.');
+    process.exit(1);
+  }
+  if (!publicKey.includes('_live_') || !secretKey.includes('_live_')) {
+    console.error('Keys must be LIVE (pk_live_ / sk_live_).');
+    process.exit(1);
   }
 
   if (!process.env.DATABASE_URL) {

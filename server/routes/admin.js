@@ -408,7 +408,7 @@ router.post('/paystack/disconnect', async (_req, res) => {
     res.json({
       connected: false,
       mock: true,
-      message: 'Paystack disconnected. Payments will use mock debit until you connect again.',
+      message: 'Paystack disconnected. Add LIVE keys before taking payments.',
     });
   } catch (err) {
     console.error(err);

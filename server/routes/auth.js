@@ -1,9 +1,21 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const { sql } = require('../db');
 const { signToken, authRequired } = require('../auth');
+const {
+  normalizeIndexNumber,
+  isValidIndexNumber,
+  indexFormatError,
+} = require('../lib/index-number');
+const {
+  studentPayload,
+  purgeExpiredPending,
+  cancelPendingSignup,
+} = require('../lib/pending-signup');
 
 const router = express.Router();
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 
 const PROGRAM_LABELS = {
   PHY: 'BSc Physics',
@@ -22,14 +34,6 @@ function programFromIndex(indexNumber) {
   return PROGRAM_LABELS[code] || code || 'Unknown programme';
 }
 
-function normalizeIndexNumber(indexNumber) {
-  return String(indexNumber || '')
-    .trim()
-    .toUpperCase()
-    .replace(/\\+/g, '/')
-    .replace(/\s+/g, '');
-}
-
 function normalizeEmail(email) {
   return String(email || '')
     .trim()
@@ -40,17 +44,18 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-function studentPayload(row) {
-  return {
-    student_id: row.student_id,
-    index_number: row.index_number,
-    full_name: row.full_name,
-    email: row.email || '',
-    programme: row.programme || programFromIndex(row.index_number),
-    level: row.level || '',
-    program: row.programme || programFromIndex(row.index_number),
-    role: 'student',
-  };
+function signPendingToken(pending) {
+  return jwt.sign(
+    {
+      role: 'pending',
+      id: pending.pending_id,
+      name: pending.full_name,
+      email: pending.email,
+      index_number: pending.index_number,
+    },
+    JWT_SECRET,
+    { expiresIn: '1h' }
+  );
 }
 
 router.get('/student/verify-index', async (req, res) => {
@@ -85,8 +90,14 @@ router.get('/student/verify-index', async (req, res) => {
   }
 });
 
+/**
+ * Start signup — does NOT create a student row.
+ * Account is created only after Paystack payment succeeds.
+ */
 router.post('/student/register', async (req, res) => {
   try {
+    await purgeExpiredPending();
+
     const fullName = String(req.body.full_name || '').trim();
     const indexNumber = normalizeIndexNumber(req.body.index_number);
     const email = normalizeEmail(req.body.email);
@@ -97,8 +108,8 @@ router.post('/student/register', async (req, res) => {
     if (!fullName || fullName.length < 2) {
       return res.status(400).json({ error: 'Enter your full name' });
     }
-    if (!indexNumber || indexNumber.length < 5) {
-      return res.status(400).json({ error: 'Enter a valid index number' });
+    if (!isValidIndexNumber(indexNumber)) {
+      return res.status(400).json({ error: indexFormatError() });
     }
     if (!isValidEmail(email)) {
       return res.status(400).json({ error: 'Enter a valid email address' });
@@ -134,43 +145,80 @@ router.post('/student/register', async (req, res) => {
       return res.status(409).json({ error: 'This email is already registered. Sign in instead.' });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
-    const rows = await sql`
-      INSERT INTO students (index_number, full_name, email, password_hash, programme, level)
-      VALUES (${indexNumber}, ${fullName}, ${email}, ${passwordHash}, ${programme}, ${level})
-      RETURNING student_id, index_number, full_name, email, programme, level
+    // Replace any previous unfinished signup for this index/email
+    await sql`
+      DELETE FROM pending_signups
+      WHERE UPPER(TRIM(index_number)) = ${indexNumber}
+         OR LOWER(TRIM(email)) = ${email}
     `;
-    const student = rows[0];
-    const token = signToken({ role: 'student', id: student.student_id, name: student.full_name });
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    const expires = new Date(Date.now() + 60 * 60 * 1000);
+    const rows = await sql`
+      INSERT INTO pending_signups (
+        index_number, full_name, email, password_hash, programme, level, expires_at
+      )
+      VALUES (
+        ${indexNumber},
+        ${fullName},
+        ${email},
+        ${passwordHash},
+        ${programme},
+        ${level},
+        ${expires.toISOString()}
+      )
+      RETURNING pending_id, index_number, full_name, email, programme, level, expires_at
+    `;
+    const pending = rows[0];
+    const token = signPendingToken(pending);
+
     res.status(201).json({
       token,
-      user: studentPayload(student),
-      message: 'Account created. Continue to payment when ready.',
+      requires_payment: true,
+      user: {
+        role: 'pending',
+        pending_id: pending.pending_id,
+        index_number: pending.index_number,
+        full_name: pending.full_name,
+        email: pending.email,
+        programme: pending.programme,
+        level: pending.level,
+      },
+      message: 'Pay the practical fee to create your account. Nothing is saved for sign-in until payment succeeds.',
     });
   } catch (err) {
     console.error(err);
     if (err.code === '23505') {
-      const detail = String(err.detail || err.constraint || err.message || '');
-      if (/email/i.test(detail)) {
-        return res.status(409).json({ error: 'This email is already registered. Sign in instead.' });
-      }
-      if (/index/i.test(detail)) {
-        return res.status(409).json({ error: 'This index number is already registered. Sign in instead.' });
-      }
-      return res.status(409).json({ error: 'Index number or email already registered' });
+      return res.status(409).json({ error: 'This index or email already has an unfinished signup. Complete payment or try again.' });
     }
     res.status(500).json({ error: 'Registration failed' });
   }
 });
 
+/** Cancel unfinished signup — removes pending data (no student account). */
+router.post('/student/cancel-pending', authRequired(['pending']), async (req, res) => {
+  try {
+    await cancelPendingSignup(req.user.id);
+    res.json({ ok: true, message: 'Signup cancelled. No account was created.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Could not cancel signup' });
+  }
+});
+
 router.post('/student/login', async (req, res) => {
   try {
+    await purgeExpiredPending();
+
     const indexNumber = normalizeIndexNumber(req.body.index_number);
     const email = normalizeEmail(req.body.email);
     const password = String(req.body.password || '');
 
     if ((!indexNumber && !email) || !password) {
       return res.status(400).json({ error: 'Index number (or email) and password are required' });
+    }
+    if (indexNumber && !isValidIndexNumber(indexNumber)) {
+      return res.status(400).json({ error: indexFormatError() });
     }
 
     const rows = indexNumber
@@ -189,11 +237,30 @@ router.post('/student/login', async (req, res) => {
 
     const student = rows[0];
     if (!student) {
+      // Unpaid signup is not a login account
+      const pending = indexNumber
+        ? await sql`
+            SELECT pending_id FROM pending_signups
+            WHERE UPPER(TRIM(index_number)) = ${indexNumber}
+              AND expires_at > NOW()
+            LIMIT 1
+          `
+        : await sql`
+            SELECT pending_id FROM pending_signups
+            WHERE LOWER(TRIM(email)) = ${email}
+              AND expires_at > NOW()
+            LIMIT 1
+          `;
+      if (pending[0]) {
+        return res.status(401).json({
+          error: 'Payment not completed. Create account again and finish Paystack payment before you can sign in.',
+        });
+      }
       return res.status(401).json({ error: 'Invalid index number or password' });
     }
     if (!student.password_hash) {
       return res.status(401).json({
-        error: 'This account has no password yet. Register a new account or ask admin to reset seed data.',
+        error: 'This account has no password yet. Register again and complete payment.',
       });
     }
     if (!(await bcrypt.compare(password, student.password_hash))) {
@@ -242,6 +309,28 @@ router.post('/admin/login', async (req, res) => {
 
 router.get('/me', authRequired(), async (req, res) => {
   try {
+    if (req.user.role === 'pending') {
+      const rows = await sql`
+        SELECT pending_id, index_number, full_name, email, programme, level
+        FROM pending_signups
+        WHERE pending_id = ${req.user.id}
+          AND expires_at > NOW()
+        LIMIT 1
+      `;
+      if (!rows[0]) return res.status(404).json({ error: 'Signup expired. Register again.' });
+      return res.json({
+        user: {
+          role: 'pending',
+          pending_id: rows[0].pending_id,
+          index_number: rows[0].index_number,
+          full_name: rows[0].full_name,
+          email: rows[0].email,
+          programme: rows[0].programme,
+          level: rows[0].level,
+        },
+        requires_payment: true,
+      });
+    }
     if (req.user.role === 'student') {
       const rows = await sql`
         SELECT student_id, index_number, full_name, email, programme, level

@@ -41,9 +41,27 @@ CREATE TABLE IF NOT EXISTS schedules (
   CHECK (end_time > start_time)
 );
 
+CREATE TABLE IF NOT EXISTS pending_signups (
+  pending_id     SERIAL PRIMARY KEY,
+  index_number   VARCHAR(20)  NOT NULL,
+  full_name      VARCHAR(100) NOT NULL,
+  email          VARCHAR(120) NOT NULL,
+  password_hash  VARCHAR(255) NOT NULL,
+  programme      VARCHAR(100),
+  level          VARCHAR(20),
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at     TIMESTAMPTZ NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_pending_index_ci
+  ON pending_signups (UPPER(TRIM(index_number)));
+CREATE UNIQUE INDEX IF NOT EXISTS idx_pending_email_ci
+  ON pending_signups (LOWER(TRIM(email)));
+
 CREATE TABLE IF NOT EXISTS payments (
   payment_id         SERIAL PRIMARY KEY,
-  student_id         INT NOT NULL REFERENCES students(student_id) ON DELETE RESTRICT,
+  student_id         INT REFERENCES students(student_id) ON DELETE RESTRICT,
+  pending_signup_id  INT REFERENCES pending_signups(pending_id) ON DELETE CASCADE,
   email              VARCHAR(120) NOT NULL,
   phone_number       VARCHAR(20),
   amount             NUMERIC(10,2) NOT NULL CHECK (amount > 0),
@@ -51,7 +69,11 @@ CREATE TABLE IF NOT EXISTS payments (
                        CHECK (status IN ('pending', 'success', 'failed')),
   paystack_reference VARCHAR(100) NOT NULL UNIQUE,
   paid_at            TIMESTAMPTZ,
-  created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (
+    (student_id IS NOT NULL AND pending_signup_id IS NULL)
+    OR (student_id IS NULL AND pending_signup_id IS NOT NULL)
+  )
 );
 
 CREATE TABLE IF NOT EXISTS registrations (

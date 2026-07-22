@@ -19,6 +19,7 @@ async function main() {
     TRUNCATE TABLE
       registrations,
       payments,
+      pending_signups,
       schedules,
       students,
       admins,
@@ -29,6 +30,7 @@ async function main() {
   const [counts] = await sql`
     SELECT
       (SELECT COUNT(*)::int FROM students) AS students,
+      (SELECT COUNT(*)::int FROM pending_signups) AS pending_signups,
       (SELECT COUNT(*)::int FROM schedules) AS schedules,
       (SELECT COUNT(*)::int FROM payments) AS payments,
       (SELECT COUNT(*)::int FROM registrations) AS registrations,

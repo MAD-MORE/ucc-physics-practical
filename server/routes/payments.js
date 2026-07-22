@@ -1,6 +1,7 @@
 const express = require('express');
 const { sql } = require('../db');
 const { authRequired } = require('../auth');
+const { getPendingById, finalizePendingPayment } = require('../lib/pending-signup');
 const { getPortalSettings } = require('../lib/portal');
 const {
   paystackMockMode,
@@ -15,6 +16,8 @@ const {
   verifyTransaction,
   chargeMobileMoney,
   verifyWebhookSignature,
+  assertLivePaystackKeys,
+  submitChargeOtp,
 } = require('../lib/paystack');
 
 const router = express.Router();
@@ -37,6 +40,7 @@ async function getUnusedSuccessPayment(studentId) {
     FROM payments
     WHERE student_id = ${studentId}
       AND status = 'success'
+      AND paid_at IS NOT NULL
       AND payment_id NOT IN (SELECT payment_id FROM registrations)
     ORDER BY paid_at DESC NULLS LAST, created_at DESC
     LIMIT 1
@@ -55,23 +59,69 @@ async function studentHasActiveBooking(studentId) {
 }
 
 async function markPaymentSuccess(reference, { phoneNumber, paidAt } = {}) {
-  const paid = paidAt ? new Date(paidAt) : new Date();
-  const rows = await sql`
-    UPDATE payments
-    SET
-      status = 'success',
-      paid_at = ${paid.toISOString()},
-      phone_number = COALESCE(${phoneNumber || null}, phone_number)
-    WHERE paystack_reference = ${reference}
-    RETURNING payment_id, email, phone_number, amount, paid_at, paystack_reference, status
-  `;
-  return rows[0] || null;
+  const finalized = await finalizePendingPayment(reference, { phoneNumber, paidAt });
+  return finalized?.payment || null;
 }
 
-async function markPaymentFailed(reference) {
+async function resolvePaymentOwner(req) {
+  if (req.user.role === 'pending') {
+    const pending = await getPendingById(req.user.id);
+    if (!pending) {
+      const err = new Error('Signup expired. Register again and complete payment.');
+      err.status = 410;
+      throw err;
+    }
+    return {
+      kind: 'pending',
+      studentId: null,
+      pendingId: pending.pending_id,
+      email: pending.email,
+      index_number: pending.index_number,
+      full_name: pending.full_name,
+    };
+  }
+
+  const [student] = await sql`
+    SELECT student_id, index_number, full_name, email
+    FROM students
+    WHERE student_id = ${req.user.id}
+    LIMIT 1
+  `;
+  if (!student) {
+    const err = new Error('Your student session is out of date. Sign out, then sign in again.');
+    err.status = 401;
+    throw err;
+  }
+  return {
+    kind: 'student',
+    studentId: student.student_id,
+    pendingId: null,
+    email: student.email,
+    index_number: student.index_number,
+    full_name: student.full_name,
+  };
+}
+
+async function clearOwnerPendingPayments(owner) {
+  if (owner.kind === 'pending') {
+    await sql`
+      DELETE FROM payments
+      WHERE pending_signup_id = ${owner.pendingId}
+        AND status IN ('pending', 'failed')
+    `;
+    return;
+  }
   await sql`
-    UPDATE payments
-    SET status = 'failed'
+    DELETE FROM payments
+    WHERE student_id = ${owner.studentId}
+      AND status IN ('pending', 'failed')
+  `;
+}
+
+/** Declined / abandoned attempts are removed — only successful payments stay in DB. */
+async function deleteFailedPaymentAttempt(reference) {
+  await sql`
+    DELETE FROM payments
     WHERE paystack_reference = ${reference}
       AND status = 'pending'
   `;
@@ -84,51 +134,46 @@ async function initializePayment(req, res) {
       return res.status(400).json({ error: 'Enter a valid email for Paystack receipt' });
     }
 
-    const [studentRow] = await sql`
-      SELECT student_id FROM students WHERE student_id = ${req.user.id} LIMIT 1
-    `;
-    if (!studentRow) {
-      return res.status(401).json({
-        error: 'Your student session is out of date. Sign out, then sign in again.',
-      });
-    }
-
+    const owner = await resolvePaymentOwner(req);
     const phoneNumber = normalizePhone(req.body.phone_number);
     const portal = await getPortalSettings(sql);
 
-    if (await studentHasActiveBooking(req.user.id)) {
-      return res.status(409).json({ error: 'Only one booking is allowed per student' });
+    if (owner.kind === 'student') {
+      if (await studentHasActiveBooking(owner.studentId)) {
+        return res.status(409).json({ error: 'Only one booking is allowed per student' });
+      }
+      const unused = await getUnusedSuccessPayment(owner.studentId);
+      if (unused) {
+        return res.json({
+          already_paid: true,
+          mock: paystackMockMode(),
+          payment: unused,
+          message: 'Payment already completed. You can register now.',
+        });
+      }
     }
 
-    const unused = await getUnusedSuccessPayment(req.user.id);
-    if (unused) {
-      return res.json({
-        already_paid: true,
-        mock: paystackMockMode(),
-        payment: unused,
-        message: 'Payment already completed. You can register now.',
-      });
+    if (!paystackMockMode()) {
+      assertLivePaystackKeys();
     }
 
-    // Drop abandoned pending attempts so the student can retry
-    await sql`
-      UPDATE payments
-      SET status = 'failed'
-      WHERE student_id = ${req.user.id}
-        AND status = 'pending'
-    `;
+    await clearOwnerPendingPayments(owner);
 
-    const reference = buildReference(req.user.id);
+    const reference = buildReference(owner.pendingId || owner.studentId);
     const amount = assertPayableAmount(portal.fee);
     const currency = getCurrency();
-    const channels = getChannels();
+    const requested = Array.isArray(req.body.channels)
+      ? req.body.channels.map((c) => String(c).trim()).filter(Boolean)
+      : [];
+    const channels = requested.length ? requested : getChannels();
 
     await sql`
       INSERT INTO payments (
-        student_id, email, phone_number, amount, status, paystack_reference, created_at
+        student_id, pending_signup_id, email, phone_number, amount, status, paystack_reference, created_at
       )
       VALUES (
-        ${req.user.id},
+        ${owner.studentId},
+        ${owner.pendingId},
         ${email},
         ${phoneNumber},
         ${amount},
@@ -138,69 +183,73 @@ async function initializePayment(req, res) {
       )
     `;
 
-    if (paystackMockMode()) {
-      const payment = await markPaymentSuccess(reference, { phoneNumber });
-      return res.status(201).json({
-        mock: true,
-        already_paid: false,
-        payment,
+    try {
+      if (paystackMockMode()) {
+        const finalized = await finalizePendingPayment(reference, { phoneNumber });
+        return res.status(201).json({
+          mock: true,
+          already_paid: false,
+          payment: finalized.payment,
+          reference,
+          token: finalized.token || undefined,
+          user: finalized.user || undefined,
+          message:
+            owner.kind === 'pending'
+              ? 'Mock payment recorded. Account created.'
+              : `Mock debit of ${currency} ${amount.toFixed(0)} recorded.`,
+        });
+      }
+
+      const baseUrl = (process.env.APP_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(
+        /\/$/,
+        ''
+      );
+      const init = await initializeTransaction({
+        email,
+        amountGhs: amount,
         reference,
-        message: `Mock debit of ${currency} ${amount.toFixed(0)} recorded. Add Paystack keys for live checkout.`,
+        currency,
+        channels,
+        callbackUrl: `${baseUrl}/student.html?paystack=return`,
+        metadata: {
+          student_id: owner.studentId,
+          pending_signup_id: owner.pendingId,
+          index_number: owner.index_number || '',
+          full_name: owner.full_name || req.user.name || '',
+          phone_number: phoneNumber,
+          custom_fields: [
+            {
+              display_name: 'Index number',
+              variable_name: 'index_number',
+              value: owner.index_number || '',
+            },
+            {
+              display_name: 'Student name',
+              variable_name: 'full_name',
+              value: owner.full_name || req.user.name || '',
+            },
+          ],
+        },
       });
+
+      res.status(201).json({
+        mock: false,
+        already_paid: false,
+        reference: init.data.reference || reference,
+        access_code: init.data.access_code,
+        authorization_url: init.data.authorization_url,
+        public_key: getPublicKey(),
+        email,
+        amount,
+        amount_pesewas: amountToPesewas(amount),
+        currency,
+        channels,
+        message: 'Paystack checkout ready',
+      });
+    } catch (initErr) {
+      await deleteFailedPaymentAttempt(reference);
+      throw initErr;
     }
-
-    const [student] = await sql`
-      SELECT index_number, full_name
-      FROM students
-      WHERE student_id = ${req.user.id}
-      LIMIT 1
-    `;
-
-    const baseUrl = (process.env.APP_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(
-      /\/$/,
-      ''
-    );
-    const init = await initializeTransaction({
-      email,
-      amountGhs: amount,
-      reference,
-      currency,
-      channels,
-      callbackUrl: `${baseUrl}/student.html?paystack=return`,
-      metadata: {
-        student_id: req.user.id,
-        index_number: student?.index_number || '',
-        full_name: student?.full_name || req.user.name || '',
-        phone_number: phoneNumber,
-        custom_fields: [
-          {
-            display_name: 'Index number',
-            variable_name: 'index_number',
-            value: student?.index_number || '',
-          },
-          {
-            display_name: 'Student name',
-            variable_name: 'full_name',
-            value: student?.full_name || req.user.name || '',
-          },
-        ],
-      },
-    });
-
-    res.status(201).json({
-      mock: false,
-      already_paid: false,
-      reference: init.data.reference || reference,
-      access_code: init.data.access_code,
-      authorization_url: init.data.authorization_url,
-      public_key: getPublicKey(),
-      email,
-      amount,
-      amount_pesewas: amountToPesewas(amount),
-      currency,
-      channels,
-      message: 'Paystack checkout ready',
-    });
   } catch (err) {
     console.error(err);
     res.status(err.status || 500).json({ error: err.message || 'Failed to start Paystack payment' });
@@ -215,28 +264,37 @@ async function verifyPayment(req, res) {
     }
 
     const owned = await sql`
-      SELECT payment_id, student_id, status, amount, email, phone_number, paystack_reference
+      SELECT payment_id, student_id, pending_signup_id, status, amount, email, phone_number, paystack_reference
       FROM payments
       WHERE paystack_reference = ${reference}
-        AND student_id = ${req.user.id}
+        AND (
+          (${req.user.role} = 'student' AND student_id = ${req.user.id})
+          OR (${req.user.role} = 'pending' AND pending_signup_id = ${req.user.id})
+        )
       LIMIT 1
     `;
     if (!owned[0]) {
       return res.status(404).json({ error: 'Payment not found' });
     }
 
-    if (owned[0].status === 'success') {
+    if (owned[0].status === 'success' && owned[0].student_id) {
+      const finalized = await finalizePendingPayment(reference);
       return res.json({
-        payment: owned[0],
-        message: 'Payment already confirmed. You can register now.',
+        payment: finalized.payment || owned[0],
+        token: finalized.token || undefined,
+        user: finalized.user || undefined,
+        message: 'Payment already confirmed. You can register for a session now.',
       });
     }
 
     if (paystackMockMode()) {
-      const payment = await markPaymentSuccess(reference);
+      const finalized = await finalizePendingPayment(reference);
       return res.json({
-        payment,
-        message: `GHS ${Number(payment.amount).toFixed(0)} debit confirmed. You can register now.`,
+        payment: finalized.payment,
+        token: finalized.token || undefined,
+        user: finalized.user || undefined,
+        status: 'success',
+        message: 'Payment confirmed. Account created — you can register for a session now.',
       });
     }
 
@@ -249,7 +307,7 @@ async function verifyPayment(req, res) {
       const paidCurrency = String(data.currency || '').toUpperCase();
       const expectedCurrency = getCurrency();
       if (Number(data.amount) !== expectedPesewas || paidCurrency !== expectedCurrency) {
-        await markPaymentFailed(reference);
+        await deleteFailedPaymentAttempt(reference);
         return res.status(402).json({
           error: `Paid amount/currency did not match the practical fee (${expectedCurrency} ${Number(owned[0].amount).toFixed(2)})`,
         });
@@ -258,29 +316,41 @@ async function verifyPayment(req, res) {
       const phoneFromPaystack =
         normalizePhone(data.authorization?.mobile || data.customer?.phone) || owned[0].phone_number;
 
-      const payment = await markPaymentSuccess(reference, {
+      const finalized = await finalizePendingPayment(reference, {
         phoneNumber: phoneFromPaystack,
         paidAt: data.paid_at || data.paidAt,
       });
 
       return res.json({
-        payment,
+        payment: finalized.payment,
+        token: finalized.token || undefined,
+        user: finalized.user || undefined,
         status: 'success',
-        message: `GHS ${Number(payment.amount).toFixed(0)} debited via Paystack. You can register now.`,
+        message:
+          finalized.user
+            ? `GHS ${Number(finalized.payment.amount).toFixed(0)} paid. Your account is created — pick a session.`
+            : `GHS ${Number(finalized.payment.amount).toFixed(0)} debited via Paystack. You can register now.`,
       });
     }
 
-    // Still waiting for phone PIN / network (do not mark failed yet)
-    if (['ongoing', 'pending', 'processing', 'queued', 'pay_offline', 'abandoned'].includes(gatewayStatus)) {
+    // Still waiting for phone PIN / OTP / network (do not mark failed yet)
+    if (
+      ['ongoing', 'pending', 'processing', 'queued', 'pay_offline', 'abandoned', 'send_otp'].includes(
+        gatewayStatus
+      )
+    ) {
       return res.json({
         status: gatewayStatus || 'pending',
         pending: true,
         reference,
-        message: data.gateway_response || 'Waiting for MoMo approval on your phone…',
+        message:
+          gatewayStatus === 'send_otp'
+            ? data.display_text || 'Enter the OTP / voucher code to finish payment'
+            : data.gateway_response || 'Waiting for MoMo approval on your phone…',
       });
     }
 
-    await markPaymentFailed(reference);
+    await deleteFailedPaymentAttempt(reference);
     return res.status(402).json({
       error: data.gateway_response || data.message || 'Payment was not successful. Try again.',
       status: gatewayStatus || 'failed',
@@ -291,7 +361,7 @@ async function verifyPayment(req, res) {
   }
 }
 
-router.get('/config', authRequired(['student']), async (_req, res) => {
+router.get('/config', authRequired(['student', 'pending']), async (_req, res) => {
   try {
     const portal = await getPortalSettings(sql);
     const mock = paystackMockMode();
@@ -305,13 +375,14 @@ router.get('/config', authRequired(['student']), async (_req, res) => {
       channels: getChannels(),
       test_mode: String(getPublicKey()).includes('_test_'),
       live_mode: String(getPublicKey()).includes('_live_'),
+      require_live: true,
       momo_providers: [
         { code: 'mtn', label: 'MTN MoMo' },
         { code: 'vod', label: 'Telecel Cash' },
         { code: 'atl', label: 'ATMoney' },
       ],
       callback_hint:
-        'Enter your MoMo number, then approve the debit with your PIN on the phone.',
+        'MoMo: type your PIN on the phone when prompted. Bank transfer and card also available.',
     });
   } catch (err) {
     console.error(err);
@@ -343,49 +414,40 @@ async function chargeMomoPayment(req, res) {
       return res.status(400).json({ error: 'Select MTN, ATMoney, or Telecel' });
     }
 
-    const [studentRow] = await sql`
-      SELECT student_id, index_number, full_name
-      FROM students
-      WHERE student_id = ${req.user.id}
-      LIMIT 1
-    `;
-    if (!studentRow) {
-      return res.status(401).json({
-        error: 'Your student session is out of date. Sign out, then sign in again.',
-      });
-    }
-
+    const owner = await resolvePaymentOwner(req);
     const portal = await getPortalSettings(sql);
-    if (await studentHasActiveBooking(req.user.id)) {
-      return res.status(409).json({ error: 'Only one booking is allowed per student' });
+
+    if (owner.kind === 'student') {
+      if (await studentHasActiveBooking(owner.studentId)) {
+        return res.status(409).json({ error: 'Only one booking is allowed per student' });
+      }
+      const unused = await getUnusedSuccessPayment(owner.studentId);
+      if (unused) {
+        return res.json({
+          already_paid: true,
+          payment: unused,
+          message: 'Payment already completed. You can register now.',
+        });
+      }
     }
 
-    const unused = await getUnusedSuccessPayment(req.user.id);
-    if (unused) {
-      return res.json({
-        already_paid: true,
-        payment: unused,
-        message: 'Payment already completed. You can register now.',
-      });
+    if (!paystackMockMode()) {
+      assertLivePaystackKeys();
     }
 
-    await sql`
-      UPDATE payments
-      SET status = 'failed'
-      WHERE student_id = ${req.user.id}
-        AND status = 'pending'
-    `;
+    await clearOwnerPendingPayments(owner);
 
-    const reference = buildReference(req.user.id);
+    const reference = buildReference(owner.pendingId || owner.studentId);
     const amount = assertPayableAmount(portal.fee);
     const currency = getCurrency();
 
     await sql`
       INSERT INTO payments (
-        student_id, email, phone_number, amount, status, paystack_reference, created_at
+        student_id, pending_signup_id, email, phone_number, amount, status, paystack_reference, created_at
       )
       VALUES (
-        ${req.user.id},
+        ${owner.studentId},
+        ${owner.pendingId},
         ${email},
         ${phoneNumber},
         ${amount},
@@ -396,13 +458,15 @@ async function chargeMomoPayment(req, res) {
     `;
 
     if (paystackMockMode()) {
-      const payment = await markPaymentSuccess(reference, { phoneNumber });
+      const finalized = await finalizePendingPayment(reference, { phoneNumber });
       return res.status(201).json({
         mock: true,
         already_paid: false,
-        payment,
+        payment: finalized.payment,
         reference,
         status: 'success',
+        token: finalized.token || undefined,
+        user: finalized.user || undefined,
         message: `Mock MoMo debit of ${currency} ${amount.toFixed(0)} recorded.`,
       });
     }
@@ -418,14 +482,15 @@ async function chargeMomoPayment(req, res) {
         reference,
         currency,
         metadata: {
-          student_id: req.user.id,
-          index_number: studentRow.index_number,
-          full_name: studentRow.full_name,
+          student_id: owner.studentId,
+          pending_signup_id: owner.pendingId,
+          index_number: owner.index_number,
+          full_name: owner.full_name,
           custom_fields: [
             {
               display_name: 'Index number',
               variable_name: 'index_number',
-              value: studentRow.index_number,
+              value: owner.index_number,
             },
           ],
         },
@@ -435,19 +500,21 @@ async function chargeMomoPayment(req, res) {
       const status = String(data.status || '').toLowerCase();
 
       if (status === 'success') {
-        const payment = await markPaymentSuccess(reference, { phoneNumber });
+        const finalized = await finalizePendingPayment(reference, { phoneNumber });
         return res.status(201).json({
           mock: false,
           already_paid: false,
-          payment,
+          payment: finalized.payment,
           reference,
           status: 'success',
-          message: `${currency} ${amount.toFixed(0)} debited from ${phoneNumber}. You can register now.`,
+          token: finalized.token || undefined,
+          user: finalized.user || undefined,
+          message: `${currency} ${amount.toFixed(0)} debited from ${phoneNumber}. Account ready.`,
         });
       }
 
       if (status === 'failed' || status === 'timeout') {
-        await markPaymentFailed(reference);
+        await deleteFailedPaymentAttempt(reference);
         let error = data.message || data.gateway_response || 'MoMo debit failed. Try again.';
         if (!liveMode && /test mobile money number/i.test(error)) {
           error =
@@ -456,7 +523,23 @@ async function chargeMomoPayment(req, res) {
         return res.status(402).json({ error });
       }
 
-      // pay_offline / pending — customer must approve on their phone (live MoMo)
+      if (status === 'send_otp') {
+        return res.status(201).json({
+          mock: false,
+          already_paid: false,
+          reference: data.reference || reference,
+          status: 'send_otp',
+          needs_otp: true,
+          display_text:
+            data.display_text ||
+            'Follow the instruction on your phone, then enter the OTP / voucher code below.',
+          message:
+            data.display_text ||
+            'Enter the OTP or voucher code from your phone to finish payment.',
+          live_mode: liveMode,
+        });
+      }
+
       return res.status(201).json({
         mock: false,
         already_paid: false,
@@ -473,7 +556,7 @@ async function chargeMomoPayment(req, res) {
         live_mode: liveMode,
       });
     } catch (chargeErr) {
-      await markPaymentFailed(reference);
+      await deleteFailedPaymentAttempt(reference);
       let detail = chargeErr.paystack?.data?.message || chargeErr.message || 'MoMo charge failed';
       if (!liveMode && /test mobile money number|test transaction/i.test(detail)) {
         detail =
@@ -491,11 +574,94 @@ async function chargeMomoPayment(req, res) {
   }
 }
 
-router.post('/initialize', authRequired(['student']), initializePayment);
-router.post('/momo', authRequired(['student']), chargeMomoPayment);
-router.post('/verify', authRequired(['student']), verifyPayment);
+async function submitMomoOtp(req, res) {
+  try {
+    const reference = String(req.body.reference || '').trim();
+    const otp = String(req.body.otp || '').trim();
+    if (!reference) {
+      return res.status(400).json({ error: 'Payment reference is required' });
+    }
+    if (!otp) {
+      return res.status(400).json({ error: 'Enter the OTP or voucher code from your phone' });
+    }
+
+    const owned = await sql`
+      SELECT payment_id, student_id, status, amount, phone_number, paystack_reference
+      FROM payments
+      WHERE paystack_reference = ${reference}
+        AND student_id = ${req.user.id}
+      LIMIT 1
+    `;
+    if (!owned[0]) {
+      return res.status(404).json({ error: 'Payment not found' });
+    }
+    if (owned[0].status === 'success') {
+      return res.json({
+        payment: owned[0],
+        status: 'success',
+        message: 'Payment already confirmed. You can register now.',
+      });
+    }
+
+    if (!paystackMockMode()) {
+      assertLivePaystackKeys();
+    }
+
+    const submitted = await submitChargeOtp({ reference, otp });
+    const data = submitted.data || {};
+    const status = String(data.status || '').toLowerCase();
+
+    if (status === 'success') {
+      const payment = await markPaymentSuccess(reference, {
+        phoneNumber: owned[0].phone_number,
+        paidAt: data.paid_at || data.transaction_date,
+      });
+      return res.json({
+        status: 'success',
+        reference,
+        payment,
+        message: `GHS ${Number(payment.amount).toFixed(0)} debited. You can register now.`,
+      });
+    }
+
+    if (status === 'failed' || status === 'timeout') {
+      await deleteFailedPaymentAttempt(reference);
+      return res.status(402).json({
+        error: data.message || data.gateway_response || 'OTP / voucher was not accepted. Try again.',
+      });
+    }
+
+    if (status === 'send_otp') {
+      return res.status(400).json({
+        error: data.display_text || data.message || 'Enter a valid OTP / voucher code',
+        needs_otp: true,
+        reference,
+        display_text: data.display_text || '',
+      });
+    }
+
+    // Still processing after OTP — poll verify
+    return res.json({
+      status: status || 'pending',
+      reference,
+      wait_for_phone: true,
+      poll_seconds: 120,
+      display_text: data.display_text || 'Confirming payment…',
+      message: data.display_text || 'Confirming your MoMo payment…',
+    });
+  } catch (err) {
+    console.error(err);
+    const detail = err.paystack?.data?.message || err.message || 'Could not submit OTP';
+    res.status(err.status || 500).json({ error: detail });
+  }
+}
+
+router.post('/initialize', authRequired(['student', 'pending']), initializePayment);
+router.post('/momo', authRequired(['student', 'pending']), chargeMomoPayment);
+router.post('/momo/otp', authRequired(['student', 'pending']), submitMomoOtp);
+router.post('/verify', authRequired(['student', 'pending']), verifyPayment);
 /** Backward-compatible alias for older clients / smoke tests */
-router.post('/', authRequired(['student']), initializePayment);
+router.post('/', authRequired(['student', 'pending']), initializePayment);
 
 function createWebhookRouter() {
   const webhook = express.Router();
@@ -513,12 +679,12 @@ function createWebhookRouter() {
       if (!reference) return res.sendStatus(200);
 
       if (event.event === 'charge.success') {
-        await markPaymentSuccess(reference, {
+        await finalizePendingPayment(reference, {
           phoneNumber: normalizePhone(event.data?.authorization?.mobile || event.data?.customer?.phone),
           paidAt: event.data?.paid_at,
         });
       } else if (event.event === 'charge.failed') {
-        await markPaymentFailed(reference);
+        await deleteFailedPaymentAttempt(reference);
       }
 
       res.sendStatus(200);

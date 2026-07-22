@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const PAYSTACK_BASE = 'https://api.paystack.co';
 const DEFAULT_CURRENCY = 'GHS';
 const MIN_AMOUNT_GHS = 0.1;
-const DEFAULT_CHANNELS = ['mobile_money', 'card'];
+const DEFAULT_CHANNELS = ['mobile_money', 'bank_transfer', 'card'];
 
 function paystackConfigured() {
   return Boolean(
@@ -12,9 +12,36 @@ function paystackConfigured() {
   );
 }
 
+function paystackKeyMode() {
+  const pk = String(process.env.PAYSTACK_PUBLIC_KEY || '');
+  const sk = String(process.env.PAYSTACK_SECRET_KEY || '');
+  if (pk.includes('_live_') && sk.includes('_live_')) return 'live';
+  if (pk.includes('_test_') || sk.includes('_test_')) return 'test';
+  if (paystackConfigured()) return 'unknown';
+  return 'none';
+}
+
+function paystackAllowTest() {
+  return String(process.env.PAYSTACK_ALLOW_TEST || '').toLowerCase() === 'true';
+}
+
+/** Block TEST keys unless PAYSTACK_ALLOW_TEST=true (local only). */
+function assertLivePaystackKeys() {
+  const mode = paystackKeyMode();
+  if (mode === 'live') return;
+  if (mode === 'test' && paystackAllowTest()) return;
+  const err = new Error(
+    mode === 'test'
+      ? 'Paystack TEST keys are blocked. Put LIVE keys (pk_live_ / sk_live_) in .env / Railway.'
+      : 'Paystack LIVE keys are required (pk_live_ / sk_live_).'
+  );
+  err.status = 503;
+  throw err;
+}
+
 function paystackMockMode() {
-  if (String(process.env.PAYSTACK_MOCK || '').toLowerCase() === 'true') return true;
-  return !paystackConfigured();
+  // Explicit only — missing keys must not silently “succeed” as mock in production.
+  return String(process.env.PAYSTACK_MOCK || '').toLowerCase() === 'true';
 }
 
 function getPublicKey() {
@@ -175,6 +202,26 @@ async function checkPendingCharge(reference) {
   return paystackRequest(`/charge/${encodeURIComponent(reference)}`);
 }
 
+/** Complete a charge that returned status send_otp (voucher / SMS code). */
+async function submitChargeOtp({ reference, otp }) {
+  const code = String(otp || '').trim();
+  const ref = String(reference || '').trim();
+  if (!ref) {
+    const err = new Error('Payment reference is required');
+    err.status = 400;
+    throw err;
+  }
+  if (!code) {
+    const err = new Error('Enter the OTP or voucher code from your phone');
+    err.status = 400;
+    throw err;
+  }
+  return paystackRequest('/charge/submit_otp', {
+    method: 'POST',
+    body: { otp: code, reference: ref },
+  });
+}
+
 function verifyWebhookSignature(rawBody, signature) {
   const secret = String(process.env.PAYSTACK_SECRET_KEY || '').trim();
   if (!secret || !signature) return false;
@@ -189,6 +236,9 @@ module.exports = {
   DEFAULT_CHANNELS,
   paystackConfigured,
   paystackMockMode,
+  paystackKeyMode,
+  paystackAllowTest,
+  assertLivePaystackKeys,
   getPublicKey,
   getCurrency,
   getChannels,
@@ -200,5 +250,6 @@ module.exports = {
   verifyTransaction,
   chargeMobileMoney,
   checkPendingCharge,
+  submitChargeOtp,
   verifyWebhookSignature,
 };

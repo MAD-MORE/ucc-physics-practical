@@ -11,7 +11,7 @@ const adminRoutes = require('./routes/admin');
 const { router: paymentRoutes, createWebhookRouter } = require('./routes/payments');
 const { sql } = require('./db');
 const { getPortalSettings } = require('./lib/portal');
-const { paystackConfigured, paystackMockMode } = require('./lib/paystack');
+const { paystackConfigured, paystackMockMode, paystackKeyMode } = require('./lib/paystack');
 const { hydratePaystackEnv } = require('./lib/paystack-config');
 
 const app = express();
@@ -32,6 +32,7 @@ app.get('/api/health', (_req, res) => {
     paystack: {
       configured: paystackConfigured(),
       mock: paystackMockMode(),
+      mode: paystackKeyMode(),
     },
   });
 });

@@ -78,11 +78,11 @@ const PaystackCheckout = {
     if (method === 'momo') {
       if (!phone_number || phone_number.length < 10) {
         phoneEl?.focus();
-        throw new Error('Enter the student’s MoMo number to debit');
+        throw new Error('Enter the MoMo number that will receive the PIN prompt');
       }
-      if (!['mtn', 'atl', 'vod'].includes(provider)) {
+      if (!['mtn', 'atl', 'vod'].includes(provider || String(providerEl?.value || '').trim().toLowerCase())) {
         providerEl?.focus();
-        throw new Error('Select your MoMo network');
+        throw new Error('Select MTN, ATMoney, or Telecel');
       }
     }
 
@@ -108,7 +108,7 @@ const PaystackCheckout = {
     const modeLabel = config.mock
       ? 'Paystack is not configured — set live keys in .env'
       : live
-        ? 'Live MoMo debit · PIN on student’s phone'
+        ? 'Live payments · MoMo PIN on phone · bank transfer · card'
         : 'Paystack TEST keys · real wallets will NOT be charged';
 
     this.setText('[data-paystack-fee]', feeLabel, root);
@@ -121,7 +121,7 @@ const PaystackCheckout = {
       } else if (live) {
         hint.classList.remove('hidden');
         hint.textContent =
-          'Enter your own MoMo number. Approve the debit with your PIN on the phone.';
+          'MoMo: choose MTN/ATMoney — type your PIN on the phone when prompted. Or pay by bank transfer / card.';
       } else {
         hint.classList.remove('hidden');
         hint.textContent =
@@ -156,7 +156,44 @@ const PaystackCheckout = {
     const form = this.resolveForm(formOrSelector);
     if (!form) return null;
     const config = await API.request('/student/payments/config');
-    return this.applyConfigToDom(config, form);
+    this.applyConfigToDom(config, form);
+    this.bindPayMethodToggle(form);
+    return config;
+  },
+
+  bindPayMethodToggle(form) {
+    if (!form || form.dataset.payMethodBound === '1') return;
+    form.dataset.payMethodBound = '1';
+
+    const sync = () => {
+      const method =
+        form.querySelector('[name="pay_method"]:checked')?.value ||
+        form.querySelector('[name="pay_method"]')?.value ||
+        'momo';
+      const momoOnly = method === 'momo';
+      form.querySelectorAll('[data-momo-only]').forEach((el) => {
+        el.classList.toggle('hidden', !momoOnly);
+        el.querySelectorAll('input, select').forEach((input) => {
+          if (momoOnly) input.setAttribute('required', 'required');
+          else input.removeAttribute('required');
+        });
+      });
+      const submit = form.querySelector('[data-paystack-pay], button[type="submit"]');
+      if (submit) {
+        if (!submit.dataset.idlePayLabel) submit.dataset.idlePayLabel = submit.textContent;
+        submit.textContent =
+          method === 'momo'
+            ? 'Send PIN prompt'
+            : method === 'bank'
+              ? 'Open bank transfer'
+              : 'Pay with card';
+      }
+    };
+
+    form.querySelectorAll('[name="pay_method"]').forEach((el) => {
+      el.addEventListener('change', sync);
+    });
+    sync();
   },
 
   /** Hydrate every Paystack form currently in the DOM. */
@@ -164,7 +201,11 @@ const PaystackCheckout = {
     const forms = this.$$('[data-paystack-form], #payment-modal-form');
     if (!forms.length) return [];
     const config = await API.request('/student/payments/config');
-    return forms.map((form) => this.applyConfigToDom(config, form));
+    return forms.map((form) => {
+      this.applyConfigToDom(config, form);
+      this.bindPayMethodToggle(form);
+      return config;
+    });
   },
 
   loadScript() {
@@ -285,6 +326,120 @@ const PaystackCheckout = {
     });
   },
 
+  /** Show OTP / voucher step when Paystack returns send_otp. */
+  showOtpStep(root, { reference, display_text } = {}) {
+    const payForm = root?.querySelector('[data-paystack-form]');
+    const otpForm = root?.querySelector('[data-paystack-otp-form]');
+    const hint = root?.querySelector('[data-paystack-otp-hint]');
+    if (!otpForm) return null;
+
+    payForm?.classList.add('hidden');
+    otpForm.classList.remove('hidden');
+    if (hint) {
+      hint.textContent =
+        display_text ||
+        'Follow the phone instruction, then enter the OTP / voucher code below.';
+    }
+    if (reference) {
+      this.ensureHidden(otpForm, 'reference', reference);
+      otpForm.dataset.paystackReference = reference;
+    }
+    const otpInput = otpForm.querySelector('[name="otp"], [data-paystack-field="otp"]');
+    if (otpInput) {
+      otpInput.value = '';
+      otpInput.focus();
+    }
+    return otpForm;
+  },
+
+  hideOtpStep(root) {
+    const payForm = root?.querySelector('[data-paystack-form]');
+    const otpForm = root?.querySelector('[data-paystack-otp-form]');
+    otpForm?.classList.add('hidden');
+    payForm?.classList.remove('hidden');
+    const otpInput = otpForm?.querySelector('[name="otp"], [data-paystack-field="otp"]');
+    if (otpInput) otpInput.value = '';
+  },
+
+  /**
+   * Wait for the student to submit OTP/voucher on the OTP form.
+   * Resolves with API result after submit_otp (+ optional poll).
+   */
+  waitForOtpSubmission(root, reference, { display_text } = {}) {
+    const otpForm = this.showOtpStep(root, { reference, display_text });
+    if (!otpForm) {
+      return Promise.reject(
+        new Error(
+          display_text ||
+            'Paystack asked for an OTP/voucher code, but the OTP form is missing. Refresh and try again.'
+        )
+      );
+    }
+
+    return new Promise((resolve, reject) => {
+      const onSubmit = async (e) => {
+        e.preventDefault();
+        const otp = String(new FormData(otpForm).get('otp') || '').trim();
+        if (!otp) {
+          reject(new Error('Enter the OTP or voucher code from your phone'));
+          return;
+        }
+        cleanup();
+        try {
+          const submitted = await Busy.run(
+            () =>
+              API.request('/student/payments/momo/otp', {
+                method: 'POST',
+                body: { reference, otp },
+              }),
+            'Confirming code…'
+          );
+          this.hideOtpStep(root);
+          if (submitted.payment || submitted.status === 'success') {
+            resolve(submitted);
+            return;
+          }
+          if (submitted.wait_for_phone) {
+            const waitEl = root.querySelector('[data-paystack-wait]');
+            if (waitEl) {
+              waitEl.classList.remove('hidden');
+              waitEl.textContent = submitted.display_text || 'Confirming payment…';
+            }
+            try {
+              resolve(
+                await this.waitForMomoApproval(reference, {
+                  seconds: submitted.poll_seconds || 120,
+                })
+              );
+            } finally {
+              waitEl?.classList.add('hidden');
+            }
+            return;
+          }
+          resolve(submitted);
+        } catch (err) {
+          this.hideOtpStep(root);
+          reject(err);
+        }
+      };
+
+      const onCancel = () => {
+        cleanup();
+        this.hideOtpStep(root);
+        reject(new Error('Payment cancelled before entering OTP'));
+      };
+
+      const cleanup = () => {
+        otpForm.removeEventListener('submit', onSubmit);
+        cancelBtn?.removeEventListener('click', onCancel);
+      };
+
+      const cancelBtn = otpForm.querySelector('[data-paystack-otp-cancel]');
+      otpForm.addEventListener('submit', onSubmit);
+      cancelBtn?.addEventListener('click', onCancel);
+    });
+  },
+
   sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   },
@@ -314,26 +469,28 @@ const PaystackCheckout = {
       }
       await this.sleep(3000);
     }
-    throw lastError || new Error('Timed out waiting for MoMo PIN approval on your phone');
+    throw lastError || new Error('Timed out waiting for MoMo approval on your phone');
   },
 
   /**
-   * Collect details from the payment form DOM, then charge MoMo (phone PIN) or card Popup.
-   * @param {HTMLFormElement|string} [formOrSelector]
+   * MoMo → realtime Charge API (PIN prompt on phone).
+   * Bank transfer / card → Paystack Popup.
    */
   async pay(formOrSelector) {
     const details = this.collectDetails(formOrSelector);
     const { form, email, phone_number, provider, method } = details;
+    const root = form.closest('[data-paystack-root]') || document;
+    this.hideOtpStep(root);
 
-    // Default: direct MoMo charge → phone PIN prompt (live)
-    if (method !== 'card') {
+    // Realtime MoMo PIN on the phone
+    if (method === 'momo') {
       const charged = await Busy.run(
         () =>
           API.request('/student/payments/momo', {
             method: 'POST',
             body: { email, phone_number, provider },
           }),
-        'Sending MoMo debit prompt…'
+        'Sending MoMo PIN prompt…'
       );
 
       form.dataset.paystackReference = charged.reference || charged.payment?.paystack_reference || '';
@@ -343,17 +500,26 @@ const PaystackCheckout = {
         return charged;
       }
 
+      if (charged.needs_otp || charged.status === 'send_otp') {
+        return this.waitForOtpSubmission(root, charged.reference, {
+          display_text: charged.display_text || charged.message,
+        });
+      }
+
       if (charged.wait_for_phone) {
-        const waitEl = document.querySelector('[data-paystack-wait]');
+        const waitEl = root.querySelector('[data-paystack-wait]');
         if (waitEl) {
           waitEl.classList.remove('hidden');
           waitEl.textContent =
             charged.display_text ||
-            'Check your phone and enter your MoMo PIN to approve the debit.';
+            'Check your phone now and type your MoMo PIN to approve the payment.';
         }
         try {
           return await this.waitForMomoApproval(charged.reference, {
             seconds: charged.poll_seconds || 180,
+            onTick(msg) {
+              if (waitEl && msg) waitEl.textContent = msg;
+            },
           });
         } finally {
           waitEl?.classList.add('hidden');
@@ -363,46 +529,64 @@ const PaystackCheckout = {
       return charged;
     }
 
-    // Card / Paystack Popup path
+    const channels = method === 'bank' ? ['bank_transfer'] : ['card'];
+    const busyLabel =
+      method === 'bank' ? 'Opening bank transfer…' : 'Opening card checkout…';
+
     const init = await Busy.run(
       () =>
         API.request('/student/payments/initialize', {
           method: 'POST',
-          body: { email, phone_number },
+          body: { email, phone_number, channels },
         }),
-      'Connecting to Paystack…'
+      busyLabel
     );
 
+    form.dataset.paystackReference = init.reference || init.payment?.paystack_reference || '';
+    this.ensureHidden(form, 'reference', form.dataset.paystackReference);
+
     if (init.already_paid || init.mock) {
-      form.dataset.paystackReference = init.reference || init.payment?.paystack_reference || '';
-      this.ensureHidden(form, 'reference', form.dataset.paystackReference);
       return init;
     }
 
-    await this.loadScript();
-    if (!window.PaystackPop) throw new Error('Paystack checkout is unavailable in this browser');
+    const waitEl = root.querySelector('[data-paystack-wait]');
+    if (waitEl && method === 'bank') {
+      waitEl.classList.remove('hidden');
+      waitEl.textContent =
+        'Paystack will show a bank account. Transfer the exact amount from your bank or MoMo (GIP / Instant Pay).';
+    }
 
-    this.applyConfigToDom(
-      {
-        mock: false,
-        public_key: init.public_key,
-        currency: init.currency || 'GHS',
-        fee: init.amount ?? details.fee,
-        test_mode: init.public_key?.includes('_test_'),
-      },
-      form
-    );
+    try {
+      await this.loadScript();
+      if (!window.PaystackPop) throw new Error('Paystack checkout is unavailable in this browser');
 
-    const popupResult = await this.openPopupFromDom(details, init);
+      this.applyConfigToDom(
+        {
+          mock: false,
+          public_key: init.public_key,
+          currency: init.currency || 'GHS',
+          fee: init.amount ?? details.fee,
+          test_mode: init.public_key?.includes('_test_'),
+        },
+        form
+      );
 
-    return Busy.run(
-      () =>
-        API.request('/student/payments/verify', {
-          method: 'POST',
-          body: { reference: popupResult.reference || init.reference },
-        }),
-      'Confirming Paystack payment…'
-    );
+      const popupResult = await this.openPopupFromDom(details, {
+        ...init,
+        channels,
+      });
+
+      return Busy.run(
+        () =>
+          API.request('/student/payments/verify', {
+            method: 'POST',
+            body: { reference: popupResult.reference || init.reference },
+          }),
+        'Confirming payment…'
+      );
+    } finally {
+      waitEl?.classList.add('hidden');
+    }
   },
 
   /** Wire submit handlers for all Paystack forms found in the DOM. */

@@ -59,10 +59,16 @@ scripts/    migrate / seed helpers
 
 ## Paystack
 
-Put keys only in `.env`:
+Use **LIVE** keys only (`pk_live_` / `sk_live_`). Put them in `.env`, then sync:
 
 ```env
-PAYSTACK_PUBLIC_KEY=
-PAYSTACK_SECRET_KEY=
+PAYSTACK_PUBLIC_KEY=pk_live_...
+PAYSTACK_SECRET_KEY=sk_live_...
 PAYSTACK_MOCK=false
 ```
+
+```bash
+npm run railway:env
+```
+
+Test keys are blocked in the app and refused by `railway:env`.

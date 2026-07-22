@@ -83,14 +83,27 @@
       <h3 id="payment-modal-title">Pay with Paystack</h3>
       <p class="lede">
         Amount due: <strong data-paystack-fee>GHS —</strong>.
-        Enter your MoMo number — the fee is debited from that wallet after you enter your PIN on the phone.
+        MoMo sends a <strong>realtime PIN prompt</strong> to your phone. Or pay by bank transfer / card.
       </p>
       <p class="meta" data-paystack-mode style="margin-top:-0.35rem;">Loading payment options…</p>
       <p class="meta hidden" data-paystack-test-hint style="margin-top:0.35rem;"></p>
       <p class="alert alert-info hidden" data-paystack-wait style="margin-top:0.75rem;">
-        Waiting for MoMo approval on your phone…
+        Waiting for MoMo PIN on your phone…
       </p>
       <div id="payment-modal-alert" class="alert hidden"></div>
+      <form id="payment-momo-otp-form" class="hidden" data-paystack-otp-form>
+        <p class="alert alert-info" data-paystack-otp-hint style="margin-bottom:1rem;">
+          Enter the OTP or voucher code from your phone.
+        </p>
+        <div class="field">
+          <label for="modal-otp">OTP / voucher code</label>
+          <input id="modal-otp" name="otp" data-paystack-field="otp" inputmode="numeric" autocomplete="one-time-code" placeholder="Code from phone / USSD" />
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-primary" type="submit" data-paystack-otp-submit>Confirm code</button>
+          <button class="btn btn-secondary" type="button" data-paystack-otp-cancel>Cancel</button>
+        </div>
+      </form>
       <form id="payment-modal-form" data-paystack-form>
         <div class="field">
           <label for="modal-email">Email (Paystack receipt)</label>
@@ -99,24 +112,25 @@
         <div class="field">
           <span class="meta">Pay with</span>
           <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:0.35rem;">
-            <label><input type="radio" name="pay_method" value="momo" checked /> MoMo (phone PIN)</label>
-            <label><input type="radio" name="pay_method" value="card" /> Card (Paystack popup)</label>
+            <label><input type="radio" name="pay_method" value="momo" checked /> MoMo (PIN on phone)</label>
+            <label><input type="radio" name="pay_method" value="bank" /> Bank transfer</label>
+            <label><input type="radio" name="pay_method" value="card" /> Card</label>
           </div>
         </div>
-        <div class="field">
+        <div class="field" data-momo-only>
           <label for="modal-provider">MoMo network</label>
-          <select id="modal-provider" name="provider" data-paystack-field="provider" required>
+          <select id="modal-provider" name="provider" data-paystack-field="provider">
             <option value="mtn">MTN MoMo</option>
-            <option value="vod">Telecel Cash</option>
             <option value="atl">ATMoney</option>
+            <option value="vod">Telecel Cash</option>
           </select>
         </div>
-        <div class="field">
+        <div class="field" data-momo-only>
           <label for="modal-phone">Your MoMo phone number</label>
-          <input id="modal-phone" name="phone_number" data-paystack-field="phone_number" type="tel" autocomplete="tel" placeholder="e.g. 0244123456" minlength="10" maxlength="15" required />
+          <input id="modal-phone" name="phone_number" data-paystack-field="phone_number" type="tel" autocomplete="tel" placeholder="e.g. 0244123456" minlength="10" maxlength="15" />
         </div>
         <div class="modal-actions">
-          <button class="btn btn-primary" type="submit" data-paystack-pay>Debit my MoMo</button>
+          <button class="btn btn-primary" type="submit" data-paystack-pay>Send PIN prompt</button>
           <button class="btn btn-secondary" type="button" id="payment-modal-cancel">Cancel</button>
         </div>
       </form>

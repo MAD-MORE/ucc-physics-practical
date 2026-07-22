@@ -9,11 +9,13 @@
     "db:schema": "node scripts/migrate.js",
     "db:student-auth": "node scripts/migrate-student-auth.js",
     "db:student-unique": "node scripts/migrate-student-unique.js",
+    "db:pending-signup": "node scripts/migrate-pending-signup.js",
     "db:paystack": "node scripts/migrate-paystack.js",
     "paystack:connect": "node scripts/connect-paystack.js",
     "paystack:sync": "node scripts/sync-paystack.js",
     "railway:env": "node scripts/railway-sync-env.js",
     "db:seed": "node scripts/seed.js",
+    "env:clean": "node scripts/clean-env.js",
     "test:smoke": "node scripts/smoke-test.js"
   },
   "engines": {

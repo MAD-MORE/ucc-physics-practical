@@ -234,7 +234,7 @@
       return;
     }
     if (!paymentReady) {
-      showAlert(alertEl, 'Pay with Paystack before registering.', 'info');
+      showAlert(alertEl, 'Payment must be completed and confirmed before you can register.', 'info');
       openPaymentModal();
       return;
     }
@@ -334,6 +334,9 @@
       setBusyButton(submitBtn, true, 'Debiting…');
       try {
         const data = await PaystackCheckout.pay(form);
+        if (data.token && data.user) {
+          API.setSession(data.token, data.user);
+        }
         paymentReady = true;
         delete paymentModal.dataset.busyLock;
         closePaymentModal();

@@ -181,14 +181,88 @@ main {
   gap: 1.25rem;
 }
 
+.auth-layout {
+  display: grid;
+  gap: 1.25rem;
+  margin-top: 0.25rem;
+}
+
+.auth-layout > .panel + .panel {
+  margin-top: 0;
+}
+
+.auth-bundle {
+  min-width: 0;
+}
+
+.auth-admin {
+  min-width: 0;
+}
+
+.auth-tabs {
+  margin-top: 0.25rem;
+}
+
+.auth-hint {
+  margin: 0 0 1rem;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+}
+
+.auth-switch {
+  margin: 1rem 0 0;
+  font-size: 0.92rem;
+  color: var(--ink-soft);
+}
+
+.auth-switch .linkish {
+  display: inline;
+  padding: 0;
+  margin-left: 0.2rem;
+  border: none;
+  background: none;
+  color: var(--teal);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.auth-switch .linkish:hover {
+  text-decoration: underline;
+}
+
+.form-row {
+  display: grid;
+  gap: 0 0.85rem;
+}
+
+.btn-block {
+  width: 100%;
+}
+
 @media (min-width: 820px) {
   .grid-2 {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .auth-layout {
+    grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.75fr);
+    align-items: start;
+  }
+
+  .form-row {
     grid-template-columns: 1fr 1fr;
   }
 
   .hero {
     min-height: calc(100vh - 5.5rem);
     align-content: center;
+  }
+}
+
+@media (max-width: 819px) {
+  .auth-layout {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -204,6 +278,60 @@ label {
 
 .field {
   margin-bottom: 0.95rem;
+}
+
+.index-segments {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.index-seg-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: nowrap;
+}
+
+.index-seg {
+  width: auto;
+  min-width: 0;
+  flex: 1 1 0;
+  text-align: center;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.7rem 0.35rem;
+}
+
+.index-seg:nth-child(1) {
+  flex: 0.85 1 0;
+}
+
+.index-seg:nth-child(3) {
+  flex: 1.15 1 0;
+}
+
+.index-seg:nth-child(7) {
+  flex: 1.2 1 0;
+}
+
+.index-slash {
+  flex: 0 0 auto;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 400;
+  color: var(--teal-deep);
+  line-height: 1;
+  user-select: none;
+}
+
+.index-format-hint {
+  margin: 0;
+}
+
+.index-format-hint.index-format-error {
+  color: var(--danger);
 }
 
 input,

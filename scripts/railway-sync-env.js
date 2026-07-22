@@ -1,5 +1,6 @@
 /**
  * Push local .env secrets to the linked Railway service (values not printed).
+ * Refuses to sync Paystack TEST keys.
  */
 const { spawnSync } = require('child_process');
 const path = require('path');
@@ -16,7 +17,7 @@ function stripQuotes(value) {
 }
 
 function setVar(key, value) {
-  const r = spawnSync('npx', ['railway', 'variable', 'set', key, '--stdin', '--skip-deploys'], {
+  const r = spawnSync('npx', ['railway', 'variable', 'set', key, '--stdin'], {
     input: value,
     encoding: 'utf8',
     shell: true,
@@ -29,10 +30,31 @@ function setVar(key, value) {
   console.log(`set ${key}`);
 }
 
+const publicKey = stripQuotes(process.env.PAYSTACK_PUBLIC_KEY);
+const secretKey = stripQuotes(process.env.PAYSTACK_SECRET_KEY);
+
+if (publicKey.includes('_test_') || secretKey.includes('_test_')) {
+  console.error('Refusing to sync Paystack TEST keys to Railway.');
+  console.error('Put LIVE keys (pk_live_ / sk_live_) in .env, then run again.');
+  process.exit(1);
+}
+
+if (!publicKey || !secretKey) {
+  console.error('PAYSTACK_PUBLIC_KEY / PAYSTACK_SECRET_KEY are empty.');
+  console.error('Paste LIVE keys into .env before syncing.');
+  process.exit(1);
+}
+
+if (!publicKey.includes('_live_') || !secretKey.includes('_live_')) {
+  console.error('Paystack keys must be LIVE (pk_live_ / sk_live_).');
+  process.exit(1);
+}
+
 const keys = [
   'DATABASE_URL',
   'JWT_SECRET',
   'PRACTICAL_FEE',
+  'APP_BASE_URL',
   'PAYSTACK_PUBLIC_KEY',
   'PAYSTACK_SECRET_KEY',
   'PAYSTACK_CURRENCY',
@@ -41,7 +63,11 @@ const keys = [
 ];
 
 for (const key of keys) {
-  const value = stripQuotes(process.env[key]);
+  let value = stripQuotes(process.env[key]);
+  if (key === 'APP_BASE_URL' && (!value || value.includes('localhost'))) {
+    value = 'https://web-production-25f46.up.railway.app';
+  }
+  if (key === 'PAYSTACK_MOCK') value = 'false';
   if (!value) {
     console.log(`skip empty ${key}`);
     continue;
@@ -50,4 +76,6 @@ for (const key of keys) {
 }
 
 setVar('NODE_ENV', 'production');
-console.log('Railway variables updated.');
+setVar('PAYSTACK_ALLOW_TEST', 'false');
+console.log('Railway variables updated (LIVE Paystack only).');
+console.log('Redeploy the Railway service so the new keys load.');

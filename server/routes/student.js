@@ -67,6 +67,7 @@ router.get('/sessions', async (req, res) => {
       FROM payments
       WHERE student_id = ${req.user.id}
         AND status = 'success'
+        AND paid_at IS NOT NULL
         AND payment_id NOT IN (SELECT payment_id FROM registrations)
       ORDER BY paid_at DESC NULLS LAST, created_at DESC
       LIMIT 1
@@ -189,15 +190,19 @@ router.post('/register', async (req, res) => {
     }
 
     const payments = await sql`
-      SELECT payment_id FROM payments
+      SELECT payment_id, paystack_reference, amount, paid_at, status
+      FROM payments
       WHERE student_id = ${req.user.id}
         AND status = 'success'
+        AND paid_at IS NOT NULL
         AND payment_id NOT IN (SELECT payment_id FROM registrations)
       ORDER BY paid_at DESC NULLS LAST, created_at DESC
       LIMIT 1
     `;
     if (!payments[0]) {
-      return res.status(402).json({ error: 'Complete Paystack payment before registering' });
+      return res.status(402).json({
+        error: 'Payment required. Pay and confirm with Paystack before registering for a session.',
+      });
     }
     const paymentId = payments[0].payment_id;
 

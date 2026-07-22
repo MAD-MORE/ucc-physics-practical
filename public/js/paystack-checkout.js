@@ -52,6 +52,30 @@ const PaystackCheckout = {
     return input;
   },
 
+  /** Allowed MoMo networks on the frontend (server also enforces). */
+  allowedMomoProviders: ['mtn'],
+
+  lockMomoProvider(form) {
+    const providerEl = this.field(form, 'provider');
+    if (!providerEl) return 'mtn';
+
+    [...(providerEl.options || [])].forEach((opt) => {
+      const code = String(opt.value || '').toLowerCase();
+      const allowed = this.allowedMomoProviders.includes(code);
+      opt.disabled = !allowed;
+      if (!allowed && opt.value) {
+        if (!/blocked/i.test(opt.textContent)) {
+          opt.textContent = `${opt.textContent.replace(/\s*—\s*blocked.*/i, '').trim()} — blocked for now`;
+        }
+      }
+    });
+
+    if (!this.allowedMomoProviders.includes(String(providerEl.value || '').toLowerCase())) {
+      providerEl.value = 'mtn';
+    }
+    return String(providerEl.value || 'mtn').toLowerCase();
+  },
+
   /** Read payer + checkout fields from the form DOM. */
   collectDetails(formOrSelector) {
     const form = this.resolveForm(formOrSelector);
@@ -63,7 +87,7 @@ const PaystackCheckout = {
     const methodEl = form.querySelector('[name="pay_method"]:checked') || this.field(form, 'pay_method');
     const email = String(emailEl?.value || '').trim();
     const phone_number = String(phoneEl?.value || '').trim();
-    const provider = String(providerEl?.value || '').trim().toLowerCase();
+    const provider = this.lockMomoProvider(form);
     const method = String(methodEl?.value || 'momo').trim().toLowerCase();
 
     if (!email) {
@@ -80,9 +104,9 @@ const PaystackCheckout = {
         phoneEl?.focus();
         throw new Error('Enter the MoMo number that will receive the PIN prompt');
       }
-      if (!['mtn'].includes(provider || String(providerEl?.value || '').trim().toLowerCase())) {
+      if (!this.allowedMomoProviders.includes(provider)) {
         providerEl?.focus();
-        throw new Error('Only MTN MoMo is enabled for now');
+        throw new Error('ATMoney and Telecel are blocked. Use MTN MoMo, bank transfer, or card.');
       }
     }
 
@@ -90,7 +114,7 @@ const PaystackCheckout = {
       form,
       email,
       phone_number,
-      provider: provider || String(providerEl?.value || 'mtn').trim().toLowerCase(),
+      provider: 'mtn',
       method,
       public_key: form.dataset.paystackPublicKey || this.field(form, 'public_key')?.value || '',
       currency: form.dataset.paystackCurrency || this.field(form, 'currency')?.value || 'GHS',
@@ -163,6 +187,7 @@ const PaystackCheckout = {
   bindPayMethodToggle(form) {
     if (!form || form.dataset.payMethodBound === '1') return;
     form.dataset.payMethodBound = '1';
+    this.lockMomoProvider(form);
 
     const sync = () => {
       const method =
@@ -177,13 +202,10 @@ const PaystackCheckout = {
           else input.removeAttribute('required');
         });
       });
+      this.lockMomoProvider(form);
       const submit = form.querySelector('[data-paystack-pay], button[type="submit"]');
       if (submit) {
         if (!submit.dataset.idlePayLabel) submit.dataset.idlePayLabel = submit.textContent;
-        const provider =
-          form.querySelector('[name="provider"]')?.value ||
-          form.querySelector('[data-paystack-field="provider"]')?.value ||
-          'mtn';
         submit.textContent =
           method === 'momo'
             ? 'Send MTN PIN prompt'
@@ -195,6 +217,11 @@ const PaystackCheckout = {
 
     form.querySelectorAll('[name="pay_method"]').forEach((el) => {
       el.addEventListener('change', sync);
+    });
+    form.querySelectorAll('[name="provider"]').forEach((el) => {
+      el.addEventListener('change', () => {
+        this.lockMomoProvider(form);
+      });
     });
     sync();
   },

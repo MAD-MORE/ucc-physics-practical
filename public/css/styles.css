@@ -939,6 +939,10 @@ body.is-busy main {
   background: rgba(13, 92, 99, 0.06);
 }
 
+select option:disabled {
+  color: #9aa3a4;
+}
+
 .field-hint {
   margin: 0.35rem 0 0;
 }

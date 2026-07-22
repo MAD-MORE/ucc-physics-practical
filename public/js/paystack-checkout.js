@@ -9,6 +9,14 @@ const PaystackCheckout = {
   scriptPromise: null,
   formSelector: '[data-paystack-form], #payment-modal-form',
 
+  escapeHtml(text) {
+    return String(text || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  },
+
   $(sel, root = document) {
     return root.querySelector(sel);
   },
@@ -145,7 +153,7 @@ const PaystackCheckout = {
       } else if (live) {
         hint.classList.remove('hidden');
         hint.textContent =
-          'MTN: after you tap pay, enter your MoMo PIN on the phone when prompted — no voucher code on this site.';
+          'After you pay, your phone opens a Reply screen: Enter MM PIN — type your MoMo PIN there, not on this website.';
       } else {
         hint.classList.remove('hidden');
         hint.textContent =
@@ -455,21 +463,24 @@ const PaystackCheckout = {
         return charged;
       }
 
-      // Always wait on the handset for MTN — never show website OTP/voucher
+      // Always wait on the handset for MTN — the MM PIN Reply dialog is on the phone
       this.hideOtpStep(root);
       const waitEl = root.querySelector('[data-paystack-wait]');
+      const pinHint =
+        charged.display_text ||
+        `Watch ${phone_number}: MTN will show a Reply screen — “Enter MM PIN”. Type your MoMo PIN on the phone and tap Reply. Do not type a code here.`;
       if (waitEl) {
         waitEl.classList.remove('hidden');
-        waitEl.textContent =
-          charged.display_text ||
-          `Check ${phone_number} now. Enter your MTN MoMo PIN on the phone to approve. Do not type any code on this website.`;
+        waitEl.innerHTML = `<strong>Phone prompt sent.</strong> ${this.escapeHtml(pinHint)}`;
       }
       try {
         return await this.waitForMomoApproval(charged.reference, {
           seconds: charged.poll_seconds || 180,
           root,
           onTick(msg) {
-            if (waitEl && msg) waitEl.textContent = msg;
+            if (waitEl && msg) {
+              waitEl.innerHTML = `<strong>Waiting for your MM PIN…</strong> ${PaystackCheckout.escapeHtml(msg)}`;
+            }
           },
         });
       } finally {

@@ -598,17 +598,16 @@ async function chargeMomoPayment(req, res) {
           wait_for_phone: true,
           display_text:
             data.display_text ||
-            `Check your phone (${phoneNumber}) and enter your MTN MoMo PIN when prompted. Do not enter a code on this website.`,
-          message: 'Approve with your MTN MoMo PIN on the phone.',
+            `Your phone should open a Reply screen: “Enter MM PIN”. Type your MoMo PIN on ${phoneNumber} and tap Reply.`,
+          message: 'Approve with your MTN MoMo PIN on the phone Reply screen.',
           poll_seconds: 180,
           live_mode: liveMode,
         });
       }
 
-      // MTN: pay_offline → PIN prompt on the handset only
       const display =
         data.display_text ||
-        `Check your phone (${phoneNumber}) now and enter your MTN MoMo PIN to approve GHS ${amount.toFixed(0)}. Do not enter a code on this website.`;
+        `Your phone should open a Reply screen: “Enter MM PIN”. Type your MoMo PIN on ${phoneNumber} and tap Reply. Amount GHS ${amount.toFixed(0)}.`;
 
       return res.status(201).json({
         mock: false,

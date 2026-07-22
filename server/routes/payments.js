@@ -46,8 +46,11 @@ function friendlyPaystackError(raw, { phone } = {}) {
       `MoMo could not debit${phoneHint}. Check MTN balance and that the number is an MTN MoMo wallet. Or pay with bank transfer / card instead.`
     );
   }
-  if (/insufficient|low balance/i.test(text)) {
-    return 'Insufficient MoMo balance. Top up and try again, or pay with bank transfer / card.';
+  if (upper.includes('UNABLE TO PROCESS') || upper.includes('UNPROCESSED_TRANSACTION')) {
+    return (
+      'Paystack could not start this MoMo charge. Hard-refresh the page (Ctrl+Shift+R), then pay again so the Paystack popup opens. ' +
+      'If it still fails, try another MTN number or bank transfer / card, or contact Paystack support for this business.'
+    );
   }
   if (/invalid.*phone|unknown subscriber|not registered/i.test(text)) {
     return 'That phone number is not registered for the selected MoMo network. Check the number and network.';
@@ -493,199 +496,12 @@ router.get('/config', authRequired(['student', 'pending']), async (_req, res) =>
  * Test: use 0551234987 — completes without a real handset prompt.
  */
 async function chargeMomoPayment(req, res) {
-  try {
-    const email = normalizeEmail(req.body.email);
-    if (!email) {
-      return res.status(400).json({ error: 'Enter a valid email for Paystack receipt' });
-    }
-
-    const phoneNumber = normalizePhone(req.body.phone_number);
-    if (!phoneNumber) {
-      return res.status(400).json({ error: 'Enter the MoMo number that will receive the debit prompt' });
-    }
-
-    const provider = String(req.body.provider || 'mtn')
-      .trim()
-      .toLowerCase();
-    // MTN only for now — re-enable atl / vod when ready
-    if (provider !== 'mtn') {
-      return res.status(400).json({
-        error: 'Only MTN MoMo is enabled for now. Use an MTN number, or pay by bank transfer / card.',
-      });
-    }
-    const normalizedProvider = 'mtn';
-
-    const owner = await resolvePaymentOwner(req);
-    const portal = await getPortalSettings(sql);
-
-    if (owner.kind === 'student') {
-      if (await studentHasActiveBooking(owner.studentId)) {
-        return res.status(409).json({ error: 'Only one booking is allowed per student' });
-      }
-      const unused = await getUnusedSuccessPayment(owner.studentId);
-      if (unused) {
-        return res.json({
-          already_paid: true,
-          payment: unused,
-          message: 'Payment already completed. You can register now.',
-        });
-      }
-    }
-
-    if (!paystackMockMode()) {
-      assertLivePaystackKeys();
-    }
-
-    await clearOwnerPendingPayments(owner);
-
-    const reference = buildReference(owner.pendingId || owner.studentId);
-    const amount = assertPayableAmount(portal.fee);
-    const currency = getCurrency();
-
-    await sql`
-      INSERT INTO payments (
-        student_id, pending_signup_id, email, phone_number, amount, status, paystack_reference, created_at
-      )
-      VALUES (
-        ${owner.studentId},
-        ${owner.pendingId},
-        ${email},
-        ${phoneNumber},
-        ${amount},
-        'pending',
-        ${reference},
-        NOW()
-      )
-    `;
-
-    if (paystackMockMode()) {
-      const finalized = await finalizePendingPayment(reference, { phoneNumber });
-      return res.status(201).json({
-        mock: true,
-        already_paid: false,
-        payment: finalized.payment,
-        reference,
-        status: 'success',
-        token: finalized.token || undefined,
-        user: finalized.user || undefined,
-        message: `Mock MoMo debit of ${currency} ${amount.toFixed(0)} recorded.`,
-      });
-    }
-
-    const liveMode = String(getPublicKey()).includes('_live_');
-
-    try {
-      const charge = await chargeMobileMoney({
-        email,
-        amountGhs: amount,
-        phone: phoneNumber,
-        provider: normalizedProvider,
-        reference,
-        currency,
-        metadata: {
-          student_id: owner.studentId,
-          pending_signup_id: owner.pendingId,
-          index_number: owner.index_number,
-          full_name: owner.full_name,
-          custom_fields: [
-            {
-              display_name: 'Index number',
-              variable_name: 'index_number',
-              value: owner.index_number,
-            },
-          ],
-        },
-      });
-
-      const data = charge.data || {};
-      const status = String(data.status || '').toLowerCase();
-
-      const gatewayReference = await syncPaystackReference(reference, data.reference);
-
-      if (status === 'success') {
-        const finalized = await finalizePendingPayment(gatewayReference, { phoneNumber });
-        return res.status(201).json({
-          mock: false,
-          already_paid: false,
-          payment: finalized.payment,
-          reference: gatewayReference,
-          status: 'success',
-          token: finalized.token || undefined,
-          user: finalized.user || undefined,
-          message: `${currency} ${amount.toFixed(0)} debited from ${phoneNumber}. Account ready.`,
-        });
-      }
-
-      if (status === 'failed' || status === 'timeout') {
-        await deleteFailedPaymentAttempt(gatewayReference);
-        let error = friendlyPaystackError(
-          data.message || data.gateway_response || 'MoMo debit failed. Try again.',
-          { phone: phoneNumber }
-        );
-        if (!liveMode && /test mobile money number/i.test(String(data.message || data.gateway_response || ''))) {
-          error =
-            'Paystack test keys cannot debit real MoMo wallets. Put LIVE keys (pk_live_ / sk_live_) in .env or run npm run paystack:connect, then students can pay with their own numbers.';
-        }
-        return res.status(402).json({ error });
-      }
-
-      if (status === 'send_otp') {
-        // Even if Paystack labels this send_otp, MTN approval is on the phone — no website voucher.
-        return res.status(201).json({
-          mock: false,
-          already_paid: false,
-          reference: gatewayReference,
-          status: 'pay_offline',
-          needs_otp: false,
-          wait_for_phone: true,
-          display_text:
-            data.display_text ||
-            `Your phone should open a Reply screen: “Enter MM PIN”. Type your MoMo PIN on ${phoneNumber} and tap Reply.`,
-          message: 'Approve with your MTN MoMo PIN on the phone Reply screen.',
-          poll_seconds: 180,
-          live_mode: liveMode,
-        });
-      }
-
-      const display =
-        data.display_text ||
-        `Your phone should open a Reply screen: “Enter MM PIN”. Type your MoMo PIN on ${phoneNumber} and tap Reply. Amount GHS ${amount.toFixed(0)}.`;
-
-      return res.status(201).json({
-        mock: false,
-        already_paid: false,
-        reference: gatewayReference,
-        status: status || 'pay_offline',
-        display_text: display,
-        wait_for_phone: true,
-        needs_otp: false,
-        poll_seconds: 180,
-        message: display,
-        live_mode: liveMode,
-      });
-    } catch (chargeErr) {
-      await deleteFailedPaymentAttempt(reference);
-      let detail = friendlyPaystackError(
-        chargeErr.paystack?.data?.message || chargeErr.message || 'MoMo charge failed',
-        { phone: phoneNumber }
-      );
-      if (!liveMode && /test mobile money number|test transaction/i.test(String(chargeErr.message || ''))) {
-        detail =
-          'Paystack test keys cannot debit real MoMo wallets. Put LIVE keys (pk_live_ / sk_live_) in .env or run npm run paystack:connect.';
-      }
-      const err = new Error(detail);
-      err.status = chargeErr.status || 402;
-      err.paystack = chargeErr.paystack;
-      throw err;
-    }
-  } catch (err) {
-    console.error(err);
-    const detail = friendlyPaystackError(
-      err.paystack?.data?.message || err.message || 'MoMo charge failed',
-      { phone: normalizePhone(req.body?.phone_number) }
-    );
-    res.status(err.status || 500).json({ error: detail });
-  }
+  // Legacy Charge API path — clients should use initialize + Paystack popup (mobile_money).
+  // Stale cached JS still hits this route; return a clear refresh message instead of Paystack OTP/charge failures.
+  return res.status(409).json({
+    error:
+      'This page is out of date. Press Ctrl+Shift+R to hard-refresh, then tap Pay with MTN MoMo so Paystack opens and your phone can show Enter MM PIN.',
+  });
 }
 
 async function submitMomoOtp(req, res) {

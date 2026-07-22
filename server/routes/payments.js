@@ -469,7 +469,17 @@ async function chargeMomoPayment(req, res) {
     const provider = String(req.body.provider || '')
       .trim()
       .toLowerCase();
-    if (!['mtn', 'atl', 'vod'].includes(provider)) {
+    const providerAliases = {
+      mtn: 'mtn',
+      atl: 'atl',
+      tigo: 'atl',
+      airteltigo: 'atl',
+      vod: 'vod',
+      vodafone: 'vod',
+      telecel: 'vod',
+    };
+    const normalizedProvider = providerAliases[provider];
+    if (!normalizedProvider) {
       return res.status(400).json({ error: 'Select MTN, ATMoney, or Telecel' });
     }
 
@@ -537,7 +547,7 @@ async function chargeMomoPayment(req, res) {
         email,
         amountGhs: amount,
         phone: phoneNumber,
-        provider,
+        provider: normalizedProvider,
         reference,
         currency,
         metadata: {
@@ -594,9 +604,12 @@ async function chargeMomoPayment(req, res) {
           reference: gatewayReference,
           status: 'send_otp',
           needs_otp: true,
+          ussd_code: data.ussd_code || '',
           display_text:
             data.display_text ||
-            'Follow the instruction on your phone, then enter the OTP / voucher code below.',
+            (normalizedProvider === 'vod'
+              ? 'Telecel does not always push a PIN. Dial the USSD shown (or *110#), get a voucher/OTP, then enter it below.'
+              : 'Follow the instruction on your phone, then enter the OTP / voucher code below.'),
           message:
             data.display_text ||
             'Enter the OTP or voucher code from your phone to finish payment.',
@@ -604,19 +617,31 @@ async function chargeMomoPayment(req, res) {
         });
       }
 
+      // Telecel / some networks: USSD or on-phone auth — not always a push PIN
+      const ussd = String(data.ussd_code || '').trim();
+      const display =
+        data.display_text ||
+        (normalizedProvider === 'vod'
+          ? `Telecel Cash: dial *110# (or the USSD Paystack shows) on ${phoneNumber} to approve, then wait here. No push PIN is sent for many Telecel wallets.`
+          : `Approve the GHS ${amount.toFixed(0)} debit on ${phoneNumber} — enter your MoMo PIN on the phone.`);
+
+      // If Paystack asks for USSD / voucher-style offline auth, also open OTP entry
+      const needsVoucher =
+        normalizedProvider === 'vod' ||
+        Boolean(ussd) ||
+        /voucher|ussd|dial \*/i.test(display);
+
       return res.status(201).json({
         mock: false,
         already_paid: false,
         reference: gatewayReference,
         status: status || 'pay_offline',
-        display_text:
-          data.display_text ||
-          `Approve the GHS ${amount.toFixed(0)} debit on ${phoneNumber} — enter your MoMo PIN on the phone.`,
+        display_text: ussd ? `${display}${display.endsWith('.') ? '' : '.'} USSD: ${ussd}` : display,
+        ussd_code: ussd,
         wait_for_phone: true,
+        needs_otp: needsVoucher,
         poll_seconds: 180,
-        message:
-          data.display_text ||
-          `Debit prompt sent to ${phoneNumber}. Enter your MoMo PIN on the phone to finish.`,
+        message: display,
         live_mode: liveMode,
       });
     } catch (chargeErr) {

@@ -176,7 +176,17 @@ async function chargeMobileMoney({
   const code = String(provider || '')
     .trim()
     .toLowerCase();
-  if (!['mtn', 'atl', 'vod'].includes(code)) {
+  const providerMap = {
+    mtn: 'mtn',
+    atl: 'atl',
+    tigo: 'atl',
+    airteltigo: 'atl',
+    vod: 'vod',
+    vodafone: 'vod',
+    telecel: 'vod',
+  };
+  const providerCode = providerMap[code];
+  if (!providerCode) {
     const err = new Error('Choose a MoMo network: MTN, ATMoney, or Telecel');
     err.status = 400;
     throw err;
@@ -192,7 +202,7 @@ async function chargeMobileMoney({
       metadata,
       mobile_money: {
         phone: momoPhone,
-        provider: code,
+        provider: providerCode,
       },
     },
   });

@@ -120,7 +120,8 @@ const PaystackCheckout = {
         hint.classList.add('hidden');
       } else if (live) {
         hint.classList.remove('hidden');
-        hint.textContent = 'Choose MoMo, bank transfer, or card below — then pay.';
+        hint.textContent =
+          'MTN/ATMoney: PIN prompt on phone. Telecel: dial USSD / enter voucher — push PIN is often not sent.';
       } else {
         hint.classList.remove('hidden');
         hint.textContent =
@@ -180,9 +181,15 @@ const PaystackCheckout = {
       const submit = form.querySelector('[data-paystack-pay], button[type="submit"]');
       if (submit) {
         if (!submit.dataset.idlePayLabel) submit.dataset.idlePayLabel = submit.textContent;
+        const provider =
+          form.querySelector('[name="provider"]')?.value ||
+          form.querySelector('[data-paystack-field="provider"]')?.value ||
+          'mtn';
         submit.textContent =
           method === 'momo'
-            ? 'Send PIN prompt'
+            ? provider === 'vod'
+              ? 'Start Telecel payment'
+              : 'Send PIN prompt'
             : method === 'bank'
               ? 'Open bank transfer'
               : 'Pay with card';
@@ -190,6 +197,9 @@ const PaystackCheckout = {
     };
 
     form.querySelectorAll('[name="pay_method"]').forEach((el) => {
+      el.addEventListener('change', sync);
+    });
+    form.querySelectorAll('[name="provider"]').forEach((el) => {
       el.addEventListener('change', sync);
     });
     sync();
@@ -529,6 +539,32 @@ const PaystackCheckout = {
       }
 
       if (charged.needs_otp || charged.status === 'send_otp') {
+        const waitEl = root.querySelector('[data-paystack-wait]');
+        if (waitEl && (charged.display_text || charged.ussd_code)) {
+          waitEl.classList.remove('hidden');
+          waitEl.textContent = charged.ussd_code
+            ? `${charged.display_text || 'Complete Telecel auth on your phone.'} USSD: ${charged.ussd_code}`
+            : charged.display_text;
+        }
+        // Telecel often needs voucher entry AND polling
+        if (charged.wait_for_phone) {
+          const otpPromise = this.waitForOtpSubmission(root, charged.reference, {
+            display_text: charged.display_text || charged.message,
+          });
+          const pollPromise = this.waitForMomoApproval(charged.reference, {
+            seconds: charged.poll_seconds || 180,
+            root,
+            onTick(msg) {
+              if (waitEl && msg) waitEl.textContent = msg;
+            },
+          });
+          try {
+            return await Promise.race([otpPromise, pollPromise]);
+          } finally {
+            waitEl?.classList.add('hidden');
+            this.hideOtpStep(root);
+          }
+        }
         return this.waitForOtpSubmission(root, charged.reference, {
           display_text: charged.display_text || charged.message,
         });
@@ -540,7 +576,9 @@ const PaystackCheckout = {
           waitEl.classList.remove('hidden');
           waitEl.textContent =
             charged.display_text ||
-            'Check your phone now and type your MoMo PIN to approve the payment.';
+            (provider === 'vod'
+              ? 'Telecel usually does not send a push PIN. Dial *110# (or the USSD shown) to approve, then wait here.'
+              : 'Check your phone now and type your MoMo PIN to approve the payment.');
         }
         try {
           return await this.waitForMomoApproval(charged.reference, {
